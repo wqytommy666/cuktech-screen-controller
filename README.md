@@ -164,6 +164,9 @@ installing:
 The signed URL is transferable, but temporary. Both sides must use the same
 BIN bytes; do not rebuild between upload and download validation.
 
+For an agent-ready Chinese runbook with diagnostics and completion criteria,
+see [AP01 FDS solution without a local gateway](docs/AP01_FDS_NO_GATEWAY_SOLUTION.zh-CN.md).
+
 ## Screen contract
 
 | Requirement | Value |

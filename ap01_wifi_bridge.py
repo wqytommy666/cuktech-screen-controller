@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import ipaddress
 import json
+import os
 import socket
 import subprocess
 import threading
@@ -22,11 +23,11 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from quota_dashboard import fetch_claude_desktop, fetch_codex, render_outputs
+from quota_dashboard import Quota, fetch_claude_desktop, fetch_codex, render_outputs
 
 
 HERE = Path(__file__).resolve().parent
-ARTIFACTS = HERE / "artifacts"
+ARTIFACTS = Path(os.environ.get("CUKTECH_ARTIFACTS_DIR", HERE / "artifacts"))
 PNG = ARTIFACTS / "quota-dashboard.png"
 GIF = ARTIFACTS / "quota-dashboard.gif"
 MASTER = ARTIFACTS / "quota-dashboard-master.png"
@@ -38,6 +39,7 @@ class State:
         self.lock = threading.Lock()
         self.last_refresh: float | None = None
         self.error: str | None = None
+        self.refreshing = False
 
 
 STATE = State()
@@ -62,49 +64,88 @@ def _fetch_with_retry(label: str, callback, attempts: int = 3):
 
 def refresh() -> dict[str, object]:
     """Refresh both official accounts and atomically replace public artifacts."""
-    claude = _fetch_with_retry("Claude", fetch_claude_desktop)
-    codex = _fetch_with_retry("Codex", fetch_codex)
-    temporary_png = PNG.with_name(PNG.name + ".tmp")
-    temporary_gif = GIF.with_name(GIF.name + ".tmp")
-    temporary_master = MASTER.with_name(MASTER.name + ".tmp")
-    render_outputs(
-        claude,
-        codex,
-        temporary_png,
-        temporary_gif,
-        temporary_master,
-    )
-    document: dict[str, object] = {
+    with STATE.lock:
+        STATE.refreshing = True
+    try:
+        claude = _fetch_with_retry("Claude", fetch_claude_desktop)
+        codex = _fetch_with_retry("Codex", fetch_codex)
+        temporary_png = PNG.with_name(PNG.name + ".tmp")
+        temporary_gif = GIF.with_name(GIF.name + ".tmp")
+        temporary_master = MASTER.with_name(MASTER.name + ".tmp")
+        render_outputs(
+            claude,
+            codex,
+            temporary_png,
+            temporary_gif,
+            temporary_master,
+        )
+        document: dict[str, object] = {
+            "schema": 1,
+            "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "claude": asdict(claude) | {"remaining_percent": claude.remaining_percent},
+            "codex": asdict(codex) | {"remaining_percent": codex.remaining_percent},
+        }
+        temporary = JSON_OUT.with_suffix(".json.tmp")
+        temporary.write_text(
+            json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        temporary_png.replace(PNG)
+        temporary_gif.replace(GIF)
+        temporary_master.replace(MASTER)
+        temporary.replace(JSON_OUT)
+        with STATE.lock:
+            STATE.last_refresh = time.time()
+            STATE.error = None
+        return document
+    finally:
+        with STATE.lock:
+            STATE.refreshing = False
+
+
+def _ensure_snapshot() -> None:
+    """Create an immediately servable waiting screen on a fresh install."""
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    if all(path.is_file() for path in (PNG, GIF, MASTER, JSON_OUT)):
+        try:
+            document = json.loads(JSON_OUT.read_text(encoding="utf-8"))
+            generated = datetime.fromisoformat(str(document.get("generated_at", "")))
+            with STATE.lock:
+                STATE.last_refresh = generated.timestamp()
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            pass
+        return
+
+    claude = Quota(provider="CLAUDE", used_percent=None, plan="MAX", source="waiting")
+    codex = Quota(provider="CODEX", used_percent=None, plan="PRO", source="waiting")
+    render_outputs(claude, codex, PNG, GIF, MASTER)
+    document = {
         "schema": 1,
-        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "generated_at": None,
+        "status": "waiting_for_first_refresh",
         "claude": asdict(claude) | {"remaining_percent": claude.remaining_percent},
         "codex": asdict(codex) | {"remaining_percent": codex.remaining_percent},
     }
-    temporary = JSON_OUT.with_suffix(".json.tmp")
-    temporary.write_text(
+    JSON_OUT.write_text(
         json.dumps(document, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
-    temporary_png.replace(PNG)
-    temporary_gif.replace(GIF)
-    temporary_master.replace(MASTER)
-    temporary.replace(JSON_OUT)
-    with STATE.lock:
-        STATE.last_refresh = time.time()
-        STATE.error = None
-    return document
 
 
-def _refresh_loop(interval: int) -> None:
-    # main() performs the first refresh.  Delaying here also makes
-    # --no-initial-refresh genuinely serve the last known-good snapshot.
-    time.sleep(interval)
+def _refresh_once() -> None:
+    try:
+        refresh()
+    except Exception as exc:
+        with STATE.lock:
+            STATE.error = str(exc)
+        print(f"Quota refresh failed; keeping last good screen: {exc}")
+
+
+def _refresh_loop(interval: int, initial_delay: bool = False) -> None:
+    if initial_delay:
+        time.sleep(interval)
     while True:
-        try:
-            refresh()
-        except Exception as exc:
-            with STATE.lock:
-                STATE.error = str(exc)
+        _refresh_once()
         time.sleep(interval)
 
 
@@ -127,6 +168,8 @@ class Handler(BaseHTTPRequestHandler):
                         "ok": STATE.error is None,
                         "last_refresh": STATE.last_refresh,
                         "error": STATE.error,
+                        "refreshing": STATE.refreshing,
+                        "snapshot_ready": GIF.is_file(),
                     },
                     ensure_ascii=False,
                     separators=(",", ":"),
@@ -206,23 +249,26 @@ def main() -> int:
     parser.add_argument("--no-initial-refresh", action="store_true")
     args = parser.parse_args()
 
-    if not args.no_initial_refresh:
+    if args.once:
         try:
             refresh()
+            print(JSON_OUT)
+            return 0
         except Exception as exc:
-            with STATE.lock:
-                STATE.error = str(exc)
-            if not all(path.is_file() for path in (PNG, GIF, JSON_OUT)):
-                raise
-    if args.once:
-        print(JSON_OUT)
-        return 0
+            print(f"Quota refresh failed: {exc}")
+            return 1
 
-    thread = threading.Thread(target=_refresh_loop, args=(args.interval,), daemon=True)
-    thread.start()
+    _ensure_snapshot()
     server = ThreadingHTTPServer((args.bind, args.port), Handler)
     print(f"AP01 quota bridge: http://{lan_ip()}:{args.port}/api/v1/quota")
     print(f"AP01 screen GIF:   http://{lan_ip()}:{args.port}/screen.gif")
+    print("Bridge is ready; live account refresh continues in the background")
+    thread = threading.Thread(
+        target=_refresh_loop,
+        args=(args.interval, args.no_initial_refresh),
+        daemon=True,
+    )
+    thread.start()
     server.serve_forever()
     return 0
 

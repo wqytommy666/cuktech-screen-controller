@@ -3,7 +3,7 @@ set -euo pipefail
 
 HERE="${0:A:h}"
 ROOT="${HERE:h}"
-VERSION="${1:-0.2.0}"
+VERSION="${1:-0.2.1}"
 STAGE="$ROOT/dist/CUKTECH-Screen-Controller-$VERSION"
 RUNTIME="$STAGE/Runtime"
 ZIP="$ROOT/dist/CUKTECH-Screen-Controller-v$VERSION-macOS-arm64.zip"
@@ -38,6 +38,7 @@ cp -R "$ROOT/reference/provider-icons" "$RUNTIME/reference/provider-icons"
 cp "$HERE/ap01-bridge-runner.sh" "$RUNTIME/macos/"
 cp "$HERE/install-launch-agent.sh" "$RUNTIME/macos/"
 cp "$HERE/uninstall-launch-agent.sh" "$RUNTIME/macos/"
+cp "$HERE/diagnose.sh" "$RUNTIME/macos/"
 chmod +x "$RUNTIME/macos/"*.sh
 echo "quota" > "$RUNTIME/artifacts/ap01-mode"
 
@@ -59,16 +60,33 @@ echo "==================================="
 mkdir -p "$RUNTIME" "$HOME/Applications"
 /usr/bin/ditto "$SOURCE_RUNTIME" "$RUNTIME"
 chmod +x "$RUNTIME/macos/"*.sh
+chmod 700 "$SUPPORT" "$RUNTIME" "$RUNTIME/artifacts" 2>/dev/null || true
+
+if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
+    echo "当前安装包只支持 Apple Silicon Mac（M 系列，包括 2024/2025/2026 款）。"
+    read -k 1 "?按任意键退出…"
+    exit 1
+fi
+MAC_MAJOR="$(sw_vers -productVersion | cut -d. -f1)"
+if (( MAC_MAJOR < 14 )); then
+    echo "当前安装包需要 macOS 14 或更高版本。"
+    read -k 1 "?按任意键退出…"
+    exit 1
+fi
 
 PYTHON=""
-for candidate in /usr/bin/python3 /opt/homebrew/bin/python3 /usr/local/bin/python3; do
-    if [[ -x "$candidate" ]]; then
+for candidate in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+    if [[ -x "$candidate" ]] && "$candidate" -c 'import sys; raise SystemExit(sys.version_info < (3, 9))' 2>/dev/null; then
         PYTHON="$candidate"
         break
     fi
 done
 if [[ -z "$PYTHON" ]]; then
-    echo "未找到 Python 3。请先安装 Xcode Command Line Tools 或 Python 3。"
+    echo "未找到 Python 3.9 或更高版本。"
+    echo "即将打开 Python 官方下载页面；安装后重新运行本安装程序。"
+    if [[ "${CUKTECH_SKIP_OPEN:-0}" != "1" ]]; then
+        open "https://www.python.org/downloads/macos/"
+    fi
     read -k 1 "?按任意键退出…"
     exit 1
 fi
@@ -78,33 +96,52 @@ if [[ ! -x "$RUNTIME/.venv/bin/python" ]]; then
     "$PYTHON" -m venv "$RUNTIME/.venv"
 fi
 echo "[2/4] 安装图片与网络组件…"
-"$RUNTIME/.venv/bin/python" -m pip install --disable-pip-version-check -r "$RUNTIME/requirements.txt"
+if [[ "${CUKTECH_SKIP_DEPENDENCIES:-0}" != "1" ]]; then
+    "$RUNTIME/.venv/bin/python" -m pip install --disable-pip-version-check -r "$RUNTIME/requirements.txt"
+fi
+"$RUNTIME/.venv/bin/python" -c 'import PIL, requests, cryptography'
 
 echo "[3/4] 安装应用…"
 rm -rf "$APP_TARGET"
 /usr/bin/ditto "$HERE/CUKTECH Screen Controller.app" "$APP_TARGET"
 
 echo "[4/4] 安装登录自动启动服务…"
-"$RUNTIME/macos/install-launch-agent.sh"
+if [[ "${CUKTECH_SKIP_LAUNCH_AGENT:-0}" != "1" ]]; then
+    "$RUNTIME/macos/install-launch-agent.sh"
+else
+    echo "已跳过 LaunchAgent（测试模式）"
+fi
 
 echo ""
 echo "安装完成：$APP_TARGET"
-open "$APP_TARGET"
+echo "第一次打开后，请跟随软件右上角的“新手引导”完成检查。"
+if [[ "${CUKTECH_SKIP_OPEN:-0}" != "1" ]]; then
+    open "$APP_TARGET"
+fi
 sleep 2
 INSTALL
 
 chmod +x "$STAGE/Install CUKTECH Screen Controller.command"
 cat > "$STAGE/先读我.txt" <<'TXT'
-CUKTECH Screen Controller 0.2.0
+CUKTECH Screen Controller 0.2.1
 
 1. 双击“Install CUKTECH Screen Controller.command”。
-2. 首次安装会下载 Python 依赖，需要联网。
-3. 安装完成后，应用位于 ~/Applications。
-4. Claude Desktop 与官方 Codex App 需提前登录。
-5. Mac 与 AP01 必须处于同一个未隔离的 Wi-Fi。
+2. 若 macOS 阻止打开，请右键安装程序并选择“打开”。
+3. 首次安装会下载 Python 依赖，需要联网。
+4. 安装完成后，应用位于 ~/Applications。
+5. 第一次打开会自动显示“新手引导”。
+6. Claude Desktop 与官方 Codex/ChatGPT App 需提前登录。
+7. Mac 与 AP01 必须处于同一个未隔离的 Wi-Fi。
+
+完整零基础教程：
+https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/BEGINNER_GUIDE.zh-CN.md
 
 日常画面刷新只写 AP01 的 /tmp RAM 槽位，不会反复刷写 Flash。
 TXT
 
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$STAGE" "$ZIP"
+(
+    cd "$ROOT/dist"
+    /usr/bin/shasum -a 256 "${ZIP:t}" > "${ZIP:t}.sha256"
+)
 echo "$ZIP"

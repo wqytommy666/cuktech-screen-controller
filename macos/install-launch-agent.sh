@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-LABEL="io.github.wqytommy666.cuktech-screen-controller.bridge"
+LABEL="${CUKTECH_LAUNCH_LABEL:-io.github.wqytommy666.cuktech-screen-controller.bridge}"
 HERE="${0:A:h}"
 ROOT="${HERE:h}"
 RUNNER="$HERE/ap01-bridge-runner.sh"
@@ -31,6 +31,10 @@ cat > "$TARGET" <<PLIST
 PLIST
 
 plutil -lint "$TARGET"
+if [[ "${CUKTECH_LAUNCH_DRY_RUN:-0}" == "1" ]]; then
+    echo "Generated without loading (test mode): $TARGET"
+    exit 0
+fi
 launchctl bootout "$DOMAIN/com.wqytommy.ap01-bridge" >/dev/null 2>&1 || true
 launchctl bootout "$DOMAIN/$LABEL" >/dev/null 2>&1 || true
 launchctl bootstrap "$DOMAIN" "$TARGET"

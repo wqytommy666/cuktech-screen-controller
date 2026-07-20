@@ -6,6 +6,12 @@ PYTHON="$ROOT/.venv/bin/python"
 MODE_FILE="$ROOT/artifacts/ap01-mode"
 CUSTOM_GIF="$ROOT/artifacts/custom-screen.gif"
 
+if [[ ! -x "$PYTHON" ]]; then
+    echo "CUKTECH runtime missing: $PYTHON"
+    echo "Run the installer again or execute scripts/setup-macos.sh from the repository."
+    exit 1
+fi
+
 mode="quota"
 if [[ -f "$MODE_FILE" ]]; then
     mode="$(tr -d '[:space:]' < "$MODE_FILE")"

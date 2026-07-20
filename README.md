@@ -12,7 +12,7 @@
   [![Screen](https://img.shields.io/badge/Screen-320%C3%97240-159FCB)](#screen-contract)
   [![License](https://img.shields.io/badge/License-MIT-F07A32)](LICENSE)
 
-  [Install the macOS app](#method-1--install-the-macos-app) · [Use with a coding agent](#method-2--give-this-repository-to-a-coding-agent)
+  [Beginner guide](docs/BEGINNER_GUIDE.md) · [Install the macOS app](#method-1--install-the-macos-app) · [Use with a coding agent](#method-2--give-this-repository-to-a-coding-agent)
 
   [English](README.md) · [简体中文](README.zh-CN.md) · [Visual Tutorial](docs/xiaohongshu-tutorial.zh-CN.md) · [Skill](#coding-agent-skill)
 </div>
@@ -22,6 +22,9 @@
 ## Choose how you want to use it
 
 CUKTECH Screen Controller provides two ways to control the AP01 display.
+
+> New to developer tools? Start with the
+> [step-by-step beginner guide](docs/BEGINNER_GUIDE.md).
 
 | | Method 1: macOS app | Method 2: coding agent |
 | --- | --- | --- |
@@ -42,8 +45,10 @@ The installer creates an isolated local runtime, installs the app in
 
 ### Current macOS requirements
 
-- macOS 14 Sonoma or later;
-- Apple Silicon Mac for the current `arm64` build;
+- macOS 14 or later, with no maximum-version cap;
+- an Apple Silicon Mac for the current `arm64` build, including 2024, 2025,
+  and 2026 models;
+- macOS versions 24, 25, 26 and later satisfy the version check;
 - Mac and AP01 on the same non-isolated Wi-Fi network;
 - Claude Desktop and the official Codex app already signed in for quota mode;
 - an internet connection during first install for the Python dependencies.
@@ -51,6 +56,10 @@ The installer creates an isolated local runtime, installs the app in
 The app can show bridge status, switch between the quota dashboard and custom
 artwork, preserve animated GIFs, select `contain` / `cover` / `stretch`, and
 guide BFNP preflight plus temporary OTA ticket handoff.
+
+<div align="center">
+  <img src="docs/images/cuktech-screen-controller-beginner-guide.jpg" alt="CUKTECH Screen Controller beginner guide" width="700" />
+</div>
 
 <div align="center">
   <img src="docs/images/cuktech-screen-controller-ota.jpg" alt="First deployment and OTA ticket handoff" width="700" />
@@ -73,10 +82,12 @@ Suggested prompt:
 
 ```text
 Use https://github.com/wqytommy666/cuktech-screen-controller as the source of
-truth. Read README.md and skills/cuktech-ap01-screen-kit/SKILL.md first.
+truth. Read AGENTS.md, README.md and
+skills/cuktech-ap01-screen-kit/SKILL.md first.
 
-I have a CUKTECH AP01 detachable display. Start with read-only compatibility
-and network checks. Confirm its model, firmware version, Mac LAN address,
+I am not a programmer, so ask for one manual action at a time. I have a
+CUKTECH AP01 detachable display. Run ./macos/diagnose.sh, then start with
+read-only compatibility and network checks. Confirm its model, firmware version, Mac LAN address,
 bridge health, and whether the real-time loader is already installed.
 
 Then install the bridge, configure either the Claude/Codex quota dashboard or
@@ -89,6 +100,14 @@ reinstall firmware.
 
 Agents without native Codex Skill support can still read `SKILL.md` as a
 complete operating guide.
+
+The repository also includes `AGENTS.md`, `CLAUDE.md`, a read-only diagnostic,
+and a one-command macOS setup:
+
+```bash
+./macos/diagnose.sh
+./scripts/setup-macos.sh
+```
 
 ## One-time installation and daily refreshes are different
 

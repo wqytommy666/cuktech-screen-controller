@@ -25,6 +25,15 @@ private let launchLabel = bundledSetting(
     fallback: "io.github.wqytommy666.cuktech-screen-controller.bridge"
 )
 private let otaGuideURL = URL(string: "https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/AP01_FDS_NO_GATEWAY_SOLUTION.zh-CN.md")!
+private let beginnerGuideURL = URL(string: "https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/BEGINNER_GUIDE.zh-CN.md")!
+private let agentSetupPrompt = """
+请使用这个公开仓库帮我配置酷态科 AP01 万向屏：
+https://github.com/wqytommy666/cuktech-screen-controller
+
+开始前先阅读 AGENTS.md、README.zh-CN.md 和 skills/cuktech-ap01-screen-kit/SKILL.md，先运行 ./macos/diagnose.sh，只做只读检查，不要直接刷固件。
+我没有编程基础，请一次只告诉我一个需要人工完成的动作。请配置软件与 Bridge，验证 /health、320×240 GIF89a 和 AP01 GET /screen.gif 200，并设置登录自动启动。
+如果实时加载器已经存在，不要 OTA；如果不存在，先确认型号 njcuk.enstor.ap01 和固件 1.0.2_0031，真正安装前再次向我确认。日常更新只使用 /tmp RAM。
+"""
 
 private func runProcess(_ executable: String, _ arguments: [String]) throws -> String {
     let process = Process()
@@ -353,11 +362,14 @@ final class AP01Model: ObservableObject {
     @Published var busy = false
     @Published var toast = ""
     @Published var showingDeployment = false
+    @Published var showingBeginnerGuide = false
+    @Published var autoStartInstalled = false
 
     private var timer: Timer?
 
     init() {
         mode = (try? String(contentsOf: modeFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)) ?? "quota"
+        updateAutoStartStatus()
         updateLocalURL()
         loadPreview()
         refreshStatus()
@@ -375,6 +387,7 @@ final class AP01Model: ObservableObject {
     }
 
     func refreshStatus() {
+        updateAutoStartStatus()
         guard let url = URL(string: "http://127.0.0.1:8765/health") else { return }
         var request = URLRequest(url: url)
         request.timeoutInterval = 2
@@ -504,11 +517,276 @@ final class AP01Model: ObservableObject {
     }
 
     func openArtifacts() { NSWorkspace.shared.open(artifacts) }
+    func updateAutoStartStatus() {
+        let path = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(launchLabel).plist")
+        autoStartInstalled = FileManager.default.fileExists(atPath: path.path)
+    }
     func copyURL() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(localURL, forType: .string)
         toast = "局域网地址已复制"
     }
+}
+
+private enum ReadinessLevel {
+    case ready, attention, missing
+
+    var color: Color {
+        switch self {
+        case .ready: return .green
+        case .attention: return .orange
+        case .missing: return .red
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .ready: return "checkmark.circle.fill"
+        case .attention: return "exclamationmark.triangle.fill"
+        case .missing: return "xmark.circle.fill"
+        }
+    }
+}
+
+private struct ReadinessCheck: Identifiable {
+    let id = UUID()
+    let title: String
+    let detail: String
+    let level: ReadinessLevel
+}
+
+@MainActor
+private final class BeginnerGuideModel: ObservableObject {
+    @Published var checks: [ReadinessCheck] = []
+    @Published var checking = false
+    @Published var copied = false
+
+    func copyAgentPrompt() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(agentSetupPrompt, forType: .string)
+        copied = true
+    }
+
+    func runChecks() {
+        checking = true
+        copied = false
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let fm = FileManager.default
+            var values: [ReadinessCheck] = []
+
+            let os = ProcessInfo.processInfo.operatingSystemVersion
+            let osText = "macOS \(os.majorVersion).\(os.minorVersion)"
+#if arch(arm64)
+            let appleSilicon = true
+#else
+            let appleSilicon = false
+#endif
+            let systemReady = os.majorVersion >= 14 && appleSilicon
+            values.append(ReadinessCheck(
+                title: "Mac 兼容性",
+                detail: systemReady ? "\(osText) · Apple Silicon；2024/2025/2026 款 Mac 均可使用" : "需要 macOS 14 及以上的 Apple Silicon Mac",
+                level: systemReady ? .ready : .missing
+            ))
+
+            let python = projectRoot.appendingPathComponent(".venv/bin/python")
+            values.append(ReadinessCheck(
+                title: "软件运行环境",
+                detail: fm.isExecutableFile(atPath: python.path) ? "Python 与图片组件已安装" : "运行环境缺失，请重新运行安装程序",
+                level: fm.isExecutableFile(atPath: python.path) ? .ready : .missing
+            ))
+
+            let launchPath = fm.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/LaunchAgents/\(launchLabel).plist")
+            values.append(ReadinessCheck(
+                title: "登录自动启动",
+                detail: fm.fileExists(atPath: launchPath.path) ? "已安装，电脑登录后会自动运行 Bridge" : "尚未安装，请重新运行安装程序",
+                level: fm.fileExists(atPath: launchPath.path) ? .ready : .missing
+            ))
+
+            let health = try? runProcess("/usr/bin/curl", ["--noproxy", "*", "-sS", "--max-time", "3", "http://127.0.0.1:8765/health"])
+            values.append(ReadinessCheck(
+                title: "后台 Bridge",
+                detail: health?.isEmpty == false ? "服务已响应，可以向 AP01 提供画面" : "服务没有响应；回到主界面点击“重启并立即刷新”",
+                level: health?.isEmpty == false ? .ready : .missing
+            ))
+
+            let claudeInstalled = ["/Applications/Claude.app", fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Claude.app").path]
+                .contains { fm.fileExists(atPath: $0) }
+            values.append(ReadinessCheck(
+                title: "Claude Desktop",
+                detail: claudeInstalled ? "已安装；请确认账户已经登录" : "未发现；仅显示自定义图片时可以忽略",
+                level: claudeInstalled ? .ready : .attention
+            ))
+
+            let codexCandidates = [
+                "/Applications/ChatGPT.app/Contents/Resources/codex",
+                "/Applications/Codex.app/Contents/Resources/codex",
+                fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications/ChatGPT.app/Contents/Resources/codex").path,
+                fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Codex.app/Contents/Resources/codex").path,
+                fm.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/codex").path,
+                fm.homeDirectoryForCurrentUser.appendingPathComponent(".npm-global/bin/codex").path,
+                "/usr/local/bin/codex", "/opt/homebrew/bin/codex"
+            ]
+            let codexInstalled = codexCandidates.contains { fm.isExecutableFile(atPath: $0) }
+            values.append(ReadinessCheck(
+                title: "Codex",
+                detail: codexInstalled ? "已发现官方 App 或 CLI；请确认账户已经登录" : "未发现；仅显示自定义图片时可以忽略",
+                level: codexInstalled ? .ready : .attention
+            ))
+
+            let ip = (try? runProcess("/usr/sbin/ipconfig", ["getifaddr", "en0"]))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            values.append(ReadinessCheck(
+                title: "Wi-Fi 局域网",
+                detail: (ip?.isEmpty == false) ? "屏幕地址：http://\(ip!):8765/screen.gif" : "没有检测到 Wi-Fi IPv4，请连接与 AP01 相同的 Wi-Fi",
+                level: (ip?.isEmpty == false) ? .ready : .attention
+            ))
+
+            let logPath = artifacts.appendingPathComponent("ap01_launchd.log")
+            let tail = try? runProcess("/usr/bin/tail", ["-n", "400", logPath.path])
+            let request = tail?.split(separator: "\n").last(where: { $0.contains("GET /screen.gif") })
+            values.append(ReadinessCheck(
+                title: "AP01 画面请求",
+                detail: request.map(String.init) ?? "最近日志中没有请求。等待下一次轮询；若从未出现，请检查 Wi-Fi 或一次性实时加载器",
+                level: request == nil ? .attention : .ready
+            ))
+
+            DispatchQueue.main.async {
+                self.checks = values
+                self.checking = false
+            }
+        }
+    }
+}
+
+struct BeginnerGuideView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var model = BeginnerGuideModel()
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.01, green: 0.03, blue: 0.07), Color(red: 0.02, green: 0.08, blue: 0.13)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ).ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                HStack(spacing: 13) {
+                    Image(systemName: "sparkles.rectangle.stack.fill")
+                        .font(.system(size: 25, weight: .semibold))
+                        .foregroundStyle(.cyan)
+                        .frame(width: 48, height: 48)
+                        .background(Color.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("新手引导").font(.system(size: 23, weight: .bold, design: .rounded))
+                        Text("不用写代码，先确认电脑、服务和万向屏是否都已准备好")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("完整零基础教程") { NSWorkspace.shared.open(beginnerGuideURL) }
+                        .buttonStyle(.bordered)
+                    Button("完成") { dismiss() }.buttonStyle(.borderedProminent).tint(.cyan)
+                }
+
+                HStack(alignment: .top, spacing: 15) {
+                    stepsCard
+                    readinessCard
+                }
+            }
+            .padding(22)
+        }
+        .preferredColorScheme(.dark)
+        .frame(width: 900, height: 690)
+        .onAppear { model.runChecks() }
+    }
+
+    private var stepsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("按顺序操作").font(.headline)
+            guideStep("1", "连接网络", "Mac 与 AP01 连接同一个非访客 Wi-Fi；最好在路由器里固定 Mac 的 IP。")
+            guideStep("2", "登录账户", "需要额度时，先打开并登录 Claude Desktop 与官方 Codex/ChatGPT App。只显示图片可以跳过。")
+            guideStep("3", "选择内容", "返回主界面选择额度模式，或选择 PNG/JPG/HEIC/WebP/动态 GIF 并推送。")
+            guideStep("4", "等待屏幕请求", "AP01 默认约每 5 分钟请求一次。检查结果中出现 GET /screen.gif 200 即为打通。")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("原厂屏幕需要一次性配置", systemImage: "info.circle.fill")
+                    .font(.subheadline.bold()).foregroundStyle(.orange)
+                Text("如果这块屏幕从未显示过电脑发送的内容，请把仓库链接交给 Coding Agent。Agent 会先检查型号和固件，不会直接安装。")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Button { model.copyAgentPrompt() } label: {
+                    Label(model.copied ? "配置指令已复制" : "复制给 Agent 的配置指令", systemImage: model.copied ? "checkmark" : "doc.on.doc")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(.orange)
+            }
+            .padding(13)
+            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+
+            Spacer(minLength: 0)
+            Text("日常换图与额度刷新写入 AP01 的 /tmp RAM，不会反复刷 Flash。")
+                .font(.caption).foregroundStyle(.green)
+        }
+        .padding(18)
+        .frame(width: 410, height: 560, alignment: .topLeading)
+        .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var readinessCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("准备情况").font(.headline)
+                    Text("检测只读取本机状态，不会操作固件")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { model.runChecks() } label: {
+                    if model.checking { ProgressView().controlSize(.small) }
+                    else { Label("重新检测", systemImage: "arrow.clockwise") }
+                }
+                .buttonStyle(.bordered).disabled(model.checking)
+            }
+
+            ScrollView {
+                VStack(spacing: 9) {
+                    ForEach(model.checks) { item in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: item.level.symbol)
+                                .foregroundStyle(item.level.color).font(.title3)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.title).font(.subheadline.bold())
+                                Text(item.detail).font(.caption).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 560, maxHeight: 560, alignment: .topLeading)
+        .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func guideStep(_ number: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(number).font(.caption.bold()).foregroundStyle(.black)
+                .frame(width: 24, height: 24).background(Color.cyan, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.subheadline.bold())
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
 }
 
 struct StatusPill: View {
@@ -745,6 +1023,7 @@ private extension View {
 
 struct AP01ContentView: View {
     @StateObject private var model = AP01Model()
+    @AppStorage("CUKTECHBeginnerGuideSeenV1") private var beginnerGuideSeen = false
 
     var body: some View {
         ZStack {
@@ -765,6 +1044,15 @@ struct AP01ContentView: View {
         .sheet(isPresented: $model.showingDeployment) {
             OTADeploymentView()
         }
+        .sheet(isPresented: $model.showingBeginnerGuide) {
+            BeginnerGuideView()
+        }
+        .onAppear {
+            if !beginnerGuideSeen {
+                beginnerGuideSeen = true
+                model.showingBeginnerGuide = true
+            }
+        }
     }
 
     private var header: some View {
@@ -784,6 +1072,10 @@ struct AP01ContentView: View {
                 Text("酷态科万向屏 · 本地实时内容控制").foregroundStyle(.secondary)
             }
             Spacer()
+            Button { model.showingBeginnerGuide = true } label: {
+                Label("新手引导", systemImage: "questionmark.circle.fill")
+            }
+            .buttonStyle(.bordered)
             StatusPill(online: model.online)
         }
     }
@@ -864,8 +1156,11 @@ struct AP01ContentView: View {
                 Text(model.toast).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            Label("已设置登录自动启动", systemImage: "power.circle.fill")
-                .font(.caption).foregroundStyle(.green)
+            Label(
+                model.autoStartInstalled ? "已设置登录自动启动" : "尚未设置登录自动启动",
+                systemImage: model.autoStartInstalled ? "power.circle.fill" : "exclamationmark.triangle.fill"
+            )
+                .font(.caption).foregroundStyle(model.autoStartInstalled ? Color.green : Color.orange)
         }
         .padding(18).frame(width: 340).frame(minHeight: 400)
         .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 20))

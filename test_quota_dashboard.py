@@ -1,4 +1,5 @@
 import unittest
+import os
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -7,6 +8,7 @@ from quota_dashboard import (
     AP01_GIF_MAX_BYTES,
     Quota,
     _claude_fable_limit,
+    _codex_executable,
     _compact_reset_summary,
     _reset_countdown,
     render_frame,
@@ -16,6 +18,16 @@ from quota_dashboard import (
 
 
 class QuotaDashboardTests(unittest.TestCase):
+    def test_codex_executable_accepts_explicit_desktop_or_cli_path(self) -> None:
+        from unittest.mock import patch
+
+        with TemporaryDirectory() as directory:
+            executable = Path(directory) / "codex"
+            executable.write_text("#!/bin/sh\n", encoding="utf-8")
+            executable.chmod(0o755)
+            with patch.dict(os.environ, {"CUKTECH_CODEX_BIN": str(executable)}):
+                self.assertEqual(_codex_executable(), str(executable))
+
     def test_fable_scoped_limit_is_kept_even_when_inactive(self) -> None:
         usage = {
             "limits": [

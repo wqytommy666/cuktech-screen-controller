@@ -8,7 +8,16 @@ if [[ "${CUKTECH_PORTABLE:-0}" == "1" ]]; then
     RUNTIME_ROOT=""
 fi
 LAUNCH_LABEL="${CUKTECH_LAUNCH_LABEL:-io.github.wqytommy666.cuktech-screen-controller.bridge}"
+APP_VERSION="${CUKTECH_VERSION:-0.2.1}"
+APP_BUILD="${CUKTECH_BUILD:-3}"
 ICON_PYTHON="${CUKTECH_PYTHON:-$ROOT/.venv/bin/python}"
+if [[ ! -x "$ICON_PYTHON" ]]; then
+    ICON_PYTHON="$(command -v python3 || true)"
+fi
+if [[ -z "$ICON_PYTHON" ]] || ! "$ICON_PYTHON" -c 'import PIL' >/dev/null 2>&1; then
+    echo "Pillow is required to build the macOS icon (set CUKTECH_PYTHON)." >&2
+    exit 1
+fi
 APP="$ROOT/dist/CUKTECH Screen Controller.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
@@ -19,6 +28,7 @@ mkdir -p "$MACOS" "$RESOURCES" "$MODULE_CACHE"
 xcrun swiftc \
     -parse-as-library \
     -O \
+    -target arm64-apple-macosx14.0 \
     -module-cache-path "$MODULE_CACHE" \
     -framework SwiftUI \
     -framework AppKit \
@@ -51,14 +61,20 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>CUKTECH Screen Controller</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.2.0</string>
-    <key>CFBundleVersion</key><string>2</string>
+    <key>CFBundleShortVersionString</key><string>${APP_VERSION}</string>
+    <key>CFBundleVersion</key><string>${APP_BUILD}</string>
     <key>CUKTECHRuntimePath</key><string>${RUNTIME_ROOT}</string>
     <key>CUKTECHLaunchLabel</key><string>${LAUNCH_LABEL}</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+
+ACTUAL_MIN_OS="$(otool -l "$MACOS/AP01ScreenController" | awk '/minos/{print $2; exit}')"
+if [[ "$ACTUAL_MIN_OS" != "14.0" ]]; then
+    echo "Unexpected Mach-O deployment target: $ACTUAL_MIN_OS" >&2
+    exit 1
+fi
 
 codesign --force --deep --sign - "$APP"
 echo "$APP"

@@ -19,6 +19,7 @@ import math
 import mmap
 import os
 import select
+import shutil
 import sqlite3
 import subprocess
 import time
@@ -40,6 +41,33 @@ CLAUDE_BASE_URL = "https://claude.ai/api"
 CLAUDE_DATA_DIR = Path.home() / "Library/Application Support/Claude"
 CLAUDE_APP = Path("/Applications/Claude.app")
 PROVIDER_ICON_DIR = Path(__file__).resolve().parent / "reference/provider-icons"
+
+
+def _codex_executable() -> str:
+    """Find Codex from either a CLI install or the official macOS app.
+
+    A new user may be signed in through the official desktop app without
+    having installed the ``codex`` shell command.  The desktop bundle ships a
+    compatible executable, so prefer PATH and then check the known app bundle
+    locations.  ``CUKTECH_CODEX_BIN`` remains available for unusual installs.
+    """
+
+    override = os.environ.get("CUKTECH_CODEX_BIN", "").strip()
+    candidates = [
+        override,
+        shutil.which("codex") or "",
+        "/Applications/ChatGPT.app/Contents/Resources/codex",
+        "/Applications/Codex.app/Contents/Resources/codex",
+        str(Path.home() / "Applications/ChatGPT.app/Contents/Resources/codex"),
+        str(Path.home() / "Applications/Codex.app/Contents/Resources/codex"),
+    ]
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    raise RuntimeError(
+        "未找到 Codex。请先安装并登录官方 Codex/ChatGPT App，"
+        "或安装 codex CLI 后重新启动服务"
+    )
 
 
 @dataclass
@@ -89,7 +117,7 @@ def _read_json_rpc(proc: subprocess.Popen[str], request_id: int, timeout: float)
 
 def fetch_codex(timeout: float = 40.0) -> Quota:
     proc = subprocess.Popen(
-        ["codex", "app-server", "--listen", "stdio://"],
+        [_codex_executable(), "app-server", "--listen", "stdio://"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,

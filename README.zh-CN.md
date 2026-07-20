@@ -12,7 +12,7 @@
   [![Screen](https://img.shields.io/badge/Screen-320%C3%97240-159FCB)](#屏幕协议)
   [![License](https://img.shields.io/badge/License-MIT-F07A32)](LICENSE)
 
-  [安装 macOS 软件](#方法一安装-macos-软件) · [交给 Coding Agent 配置](#方法二把-github-仓库交给-coding-agent)
+  [零基础教程](docs/BEGINNER_GUIDE.zh-CN.md) · [安装 macOS 软件](#方法一安装-macos-软件) · [交给 Coding Agent 配置](#方法二把-github-仓库交给-coding-agent)
 
   [English](README.md) · [简体中文](README.zh-CN.md) · [图文教程](docs/xiaohongshu-tutorial.zh-CN.md) · [Skill](#coding-agent-与-skill)
 </div>
@@ -22,6 +22,9 @@
 ## 选择一种使用方式
 
 CUKTECH Screen Controller 提供两种使用方式。
+
+> **完全没有编程基础？** 直接打开[零基础使用教程](docs/BEGINNER_GUIDE.zh-CN.md)。
+> 它从下载安装、macOS 第一次打开，到检查 AP01 是否收到画面逐步讲解。
 
 | | 方法一：安装 macOS 软件 | 方法二：交给 Coding Agent |
 | --- | --- | --- |
@@ -41,8 +44,9 @@ CUKTECH Screen Controller 提供两种使用方式。
 
 ### 当前软件要求
 
-- macOS 14 Sonoma 或更高版本；
-- 当前安装包支持 Apple Silicon Mac；
+- macOS 14 或更高版本，没有设置最高版本限制；
+- 当前安装包支持 Apple Silicon Mac，2024、2025、2026 款 Mac 均可使用；
+- macOS 24、25、26 以及后续版本都满足版本条件；
 - Mac 与 AP01 连接同一个未开启客户端隔离的 Wi-Fi；
 - 显示额度时，需要提前登录 Claude Desktop 与官方 Codex App；
 - 首次安装 Python 依赖时需要联网。
@@ -50,6 +54,10 @@ CUKTECH Screen Controller 提供两种使用方式。
 软件支持查看 Bridge 状态、切换额度面板与自定义画面、保留动态 GIF、选择
 “完整显示 / 铺满裁切 / 拉伸”，并通过图形界面完成 BFNP 固件预检与临时 OTA
 票据交接。
+
+<div align="center">
+  <img src="docs/images/cuktech-screen-controller-beginner-guide.jpg" alt="CUKTECH Screen Controller 新手引导" width="700" />
+</div>
 
 <div align="center">
   <img src="docs/images/cuktech-screen-controller-ota.jpg" alt="首次部署与 OTA 票据交接" width="700" />
@@ -71,10 +79,11 @@ https://github.com/wqytommy666/cuktech-screen-controller
 
 ```text
 请以 https://github.com/wqytommy666/cuktech-screen-controller 为唯一项目依据。
-开始执行前先阅读 README.zh-CN.md 和
+开始执行前先阅读 AGENTS.md、README.zh-CN.md 和
 skills/cuktech-ap01-screen-kit/SKILL.md。
 
-我使用的是酷态科 AP01 万向屏。先进行只读兼容性与网络检查，确认设备型号、
+我没有编程基础，请一次只告诉我一个需要人工完成的动作。我使用的是酷态科 AP01
+万向屏。先运行 ./macos/diagnose.sh，进行只读兼容性与网络检查，确认设备型号、
 固件版本、Mac 局域网地址、Bridge 健康状态，以及是否已安装实时加载器。
 
 然后安装并启动 Bridge，配置 Claude/Codex 额度面板或把我的图片转换为 320×240
@@ -84,6 +93,12 @@ skills/cuktech-ap01-screen-kit/SKILL.md。
 ```
 
 不支持 Codex Skill 格式的软件，也可以直接读取 `SKILL.md` 作为完整操作手册。
+仓库还提供 `AGENTS.md`、`CLAUDE.md` 和一键配置脚本。Agent 克隆仓库后可以运行：
+
+```bash
+./macos/diagnose.sh       # 只读检查，不修改设备
+./scripts/setup-macos.sh  # 安装 Bridge 并设置登录自启
+```
 
 ## 首次安装与日常刷新不是一回事
 

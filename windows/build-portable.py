@@ -35,6 +35,7 @@ RUNTIME_MODULES = (
     "quota_dashboard.py",
     "ap01_custom_ota.py",
     "ap01_install_firmware.py",
+    "ap01_fds_relay_client.py",
     "mi_cloud.py",
     "patch_asset.py",
 )
@@ -185,7 +186,7 @@ def create_zip(stage: Path, output: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.3.0")
+    parser.add_argument("--version", default="0.4.0")
     parser.add_argument("--cache", type=Path, default=Path.home() / ".cache/cuktech-windows-build")
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()

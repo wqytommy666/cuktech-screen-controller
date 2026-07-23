@@ -21,7 +21,10 @@ Home and kept on stable power.
 
 If the AP01 has already shown a custom image or quota dashboard, its real-time
 loader is installed and normal updates only use RAM. A completely stock AP01
-needs the supported loader installed once; use the coding-agent route below.
+needs the supported loader installed once. Open **First deployment / OTA** and
+choose **Gateway-free: get deployment package**. No Xiaomi gateway or manual
+firmware file is required. The app checks `njcuk.enstor.ap01 / 1.0.2_0031`,
+performs download-only verification, and asks again immediately before install.
 
 ## Install the app
 
@@ -31,6 +34,11 @@ needs the supported loader installed once; use the coding-agent route below.
 3. On Windows, use **Extract All**, then open `Install CUKTECH Screen Controller.cmd`.
 4. Allow local/private-network access when the operating system asks.
 5. Follow the in-app **新手引导 / Getting started** readiness checks.
+
+For a stock AP01, open **First deployment / OTA**, choose the gateway-free
+package action, run download-only verification, then use the separately
+confirmed install action. Users whose AP01 already shows custom content must
+skip this step and must not reinstall the loader.
 
 Choose **显示 Claude / Codex 额度** for quotas, or choose a fit mode and click
 **选择图片并推送** for an image or animated GIF. The Windows Release is

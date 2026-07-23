@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.3.0",
+    [string]$Version = "0.4.0",
     [switch]$SkipDependencies
 )
 
@@ -77,6 +77,7 @@ VSVersionInfo(
     --hidden-import ap01_wifi_bridge `
     --hidden-import quota_dashboard `
     --hidden-import ap01_install_firmware `
+    --hidden-import ap01_fds_relay_client `
     --hidden-import ap01_custom_ota `
     --hidden-import mi_cloud `
     --hidden-import patch_asset `

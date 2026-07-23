@@ -3,7 +3,7 @@ set -euo pipefail
 
 HERE="${0:A:h}"
 ROOT="${HERE:h}"
-VERSION="${1:-0.3.0}"
+VERSION="${1:-0.4.0}"
 STAGE="$ROOT/dist/CUKTECH-Screen-Controller-$VERSION"
 RUNTIME="$STAGE/Runtime"
 ZIP="$ROOT/dist/CUKTECH-Screen-Controller-v$VERSION-macOS-arm64.zip"
@@ -17,6 +17,7 @@ for file in \
   ap01_wifi_bridge.py \
   quota_dashboard.py \
   ap01_custom_ota.py \
+  ap01_fds_relay_client.py \
   ap01_install_firmware.py \
   mi_cloud.py \
   patch_asset.py \
@@ -39,6 +40,7 @@ cp "$HERE/ap01-bridge-runner.sh" "$RUNTIME/macos/"
 cp "$HERE/install-launch-agent.sh" "$RUNTIME/macos/"
 cp "$HERE/uninstall-launch-agent.sh" "$RUNTIME/macos/"
 cp "$HERE/diagnose.sh" "$RUNTIME/macos/"
+cp "$HERE/store_mi_home_keychain.py" "$RUNTIME/macos/"
 chmod +x "$RUNTIME/macos/"*.sh
 echo "quota" > "$RUNTIME/artifacts/ap01-mode"
 
@@ -101,6 +103,14 @@ if [[ "${CUKTECH_SKIP_DEPENDENCIES:-0}" != "1" ]]; then
     "$RUNTIME/.venv/bin/python" -m pip install --disable-pip-version-check -r "$RUNTIME/requirements.txt"
 fi
 "$RUNTIME/.venv/bin/python" -c 'import PIL, requests, cryptography'
+
+if "$RUNTIME/.venv/bin/python" "$RUNTIME/macos/store_mi_home_keychain.py" \
+  --service com.wqytommy.CUKTECHScreenController.mi-home-owner \
+  --account owner; then
+    echo "      米家首次部署登录态已保存到当前用户钥匙串"
+else
+    echo "[提示] 暂未找到米家登录态；日常换图不受影响。首次部署前请登录米家并重新运行安装程序。"
+fi
 
 echo "[3/4] 安装应用…"
 rm -rf "$APP_TARGET"

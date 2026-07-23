@@ -38,7 +38,9 @@ artifacts into a shareable project.
    Storage; Windows uses current-user DPAPI for Claude's Electron profile.
 3. **Install real-time loading for the first time**: read
    [references/realtime-firmware.md](references/realtime-firmware.md). Verify
-   the exact firmware version before touching binary offsets.
+   the exact firmware version before touching binary offsets. When the owner
+   has no FDS-capable gateway, prefer the Controller's restricted shared-relay
+   package flow; do not ask them to buy a gateway or share Xiaomi credentials.
 4. **Fix connectivity, IP changes, or persistent service operation**: read
    [references/network-operations.md](references/network-operations.md).
 
@@ -67,6 +69,10 @@ artifacts into a shareable project.
   `/tmp/.ap01q*.gif` RAM slots instead of OTA.
 - Never pass an already real-time-patched image through
   `ap01_custom_ota.py`; that would overwrite the injected payload area.
+- A shared relay may accept only the private Bridge URL, fixed model/version
+  and refresh interval. It must reject arbitrary firmware uploads, pin the
+  reviewed stock SHA-256, omit signed URLs from logs, and never receive the
+  AP01 owner's Xiaomi credentials or DID.
 
 ## Validate before delivery
 

@@ -1,5 +1,10 @@
 # AP01 无外置网关时的 FDS 上传与 `download-only` 解决方案
 
+> **普通用户优先使用 Controller 0.4 的自动流程：**打开“首次部署 / OTA 交接”，
+> 点击“无网关：一键获取部署包”，再依次完成“仅下载验证”和最终确认安装。用户
+> 不需要购买网关或手工传递 BIN/URL。本文余下内容保留给 Agent、离线交接和故障排查。
+> 共享服务边界见 [FDS Relay 运维文档](FDS_RELAY_OPERATOR.zh-CN.md)。
+
 > 本文是给执行安装任务的 Agent 使用的操作说明。目标设备为酷态科 AP01，
 > model `njcuk.enstor.ap01`，固件 `1.0.2_0031`。当前只验证 AP01 能完整
 > 下载并校验 `screen-realtime.bin`，**不执行安装**。

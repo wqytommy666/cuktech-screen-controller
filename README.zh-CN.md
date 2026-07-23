@@ -29,13 +29,17 @@ CUKTECH Screen Controller 提供两种使用方式。
 > **完全没有编程基础？** 直接打开[零基础使用教程](docs/BEGINNER_GUIDE.zh-CN.md)。
 > 它从下载安装、macOS 第一次打开，到检查 AP01 是否收到画面逐步讲解。
 
+> **没有米家网关也可以。** 原厂 AP01 用户只需让屏幕稳定供电、在米家中在线，
+> 并让电脑与屏幕处于同一局域网。软件中的“无网关：一键获取部署包”会通过受限
+> 共享服务完成 FDS 上传；真正写入前仍会要求用户明确确认。
+
 | | 方法一：安装 macOS / Windows 软件 | 方法二：在 macOS / Windows 交给 Coding Agent |
 | --- | --- | --- |
 | 适合人群 | 使用原生界面的日常用户 | 首次配置、故障诊断和深度自定义 |
 | 操作方式 | CUKTECH Screen Controller 图形软件 | Claude Code、Codex、OpenCode、WorkBuddy 等 |
 | 自定义图片 | 选择 PNG、JPG 或 GIF 后直接推送 | 使用仓库脚本转换、验证并部署 |
 | 额度面板 | 两个平台均可显示 Claude 与 Codex 实时额度 | 可修改 UI，并使用同一套账号采集器 |
-| 首次加载器 | BFNP 预检与 OTA 票据交接 | 完整兼容性检查、构建和安装流程 |
+| 首次加载器 | 无网关一键准备、BFNP 预检与确认安装 | 完整兼容性检查、构建和安装流程 |
 | 日常刷新 | 通过 Wi-Fi 更新 AP01 内存 | 通过 Wi-Fi 更新 AP01 内存 |
 
 ## 平台支持
@@ -45,7 +49,7 @@ CUKTECH Screen Controller 提供两种使用方式。
 - **macOS：** Apple Silicon 原生 SwiftUI 软件，要求 macOS 14 或更高版本；
 - **Windows：** Windows 10/11 x64 图形软件；
 - 两个平台都支持画面预览、自定义图片/GIF、Claude/Codex 额度、Bridge 状态、
-  登录自动启动、新手检查与 OTA 票据交接；
+  登录自动启动、新手检查与无网关 OTA 部署；
 - **Python 脚本与 Coding Agent 工具链**也同时支持 macOS 和 Windows，可用于
   图片转换、验证、诊断和深度自定义；
 - Windows 使用 `scripts/setup-windows.ps1` 与 `scripts/diagnose-windows.ps1`，
@@ -59,11 +63,11 @@ CUKTECH Screen Controller 提供两种使用方式。
 下载最新版 **CUKTECH Screen Controller**：
 
 - **Windows 10/11 x64：**解压
-  `CUKTECH-Screen-Controller-0.3.0-Windows-x64.zip`，双击
+  `CUKTECH-Screen-Controller-0.4.0-Windows-x64.zip`，双击
   **`Install CUKTECH Screen Controller.cmd`**。详见
   [Windows 使用指南](docs/WINDOWS_GUIDE.zh-CN.md)；
 - **Apple Silicon macOS：**解压
-  `CUKTECH-Screen-Controller-v0.3.0-macOS-arm64.zip`，双击
+  `CUKTECH-Screen-Controller-v0.4.0-macOS-arm64.zip`，双击
   **`Install CUKTECH Screen Controller.command`**。
 
 两个安装器都会开启登录后自动运行的后台 Bridge。Windows 包自带完整运行环境；
@@ -75,6 +79,7 @@ macOS 安装器会在第一次运行时创建隔离 Python 环境。
 - 电脑与 AP01 位于同一个未开启客户端隔离的局域网；
 - 显示额度时，需要提前登录 Claude Desktop 与官方 Codex App；
 - 实时额度与首次 OTA 云端操作需要互联网。
+- **用户不需要购买小米网关**；共享 FDS 服务只在原厂屏首次安装时使用一次。
 
 ### 联网和设备准备（务必先看）
 
@@ -98,8 +103,8 @@ macOS 安装器会在第一次运行时创建隔离 Python 环境。
 完整清单请看：[安装前准备与联网说明](docs/PREPARATION_CHECKLIST.zh-CN.md)。
 
 软件支持查看 Bridge 状态、切换额度面板与自定义画面、保留动态 GIF、选择
-“完整显示 / 铺满裁切 / 拉伸”，并通过图形界面完成 BFNP 固件预检与临时 OTA
-票据交接。
+“完整显示 / 铺满裁切 / 拉伸”，并通过图形界面自动获取无网关部署包、完成
+BFNP 固件预检、仅下载验证与确认安装。
 
 <div align="center">
   <img src="docs/images/cuktech-screen-controller-beginner-guide.jpg" alt="CUKTECH Screen Controller 新手引导" width="700" />
@@ -109,8 +114,8 @@ macOS 安装器会在第一次运行时创建隔离 Python 环境。
   <img src="docs/images/cuktech-screen-controller-ota.jpg" alt="首次部署与 OTA 票据交接" width="700" />
 </div>
 
-> 软件不会静默安装固件。“首次部署 / OTA 交接”窗口只进行预检、票据交接和
-> 仅下载验证。完全原厂状态的 AP01 仍需完成一次下方的兼容加载器安装流程。
+> 软件不会静默安装固件。它会先进行米家只读检查、获取部署包和仅下载验证，
+> 最后单独弹出 Flash 写入确认。完全原厂状态的 AP01 只需完成这一次安装。
 
 ## 方法二：把 GitHub 仓库交给 Coding Agent
 
@@ -285,6 +290,28 @@ Windows 使用 DPAPI 在内存中解密当前用户的 Claude Electron 登录态
 `AP01_IP "GET /screen.gif" 200`，即表示端到端实时刷新已打通。
 
 ### 小米 FDS 上传前提
+
+#### 普通用户：不需要拥有网关
+
+CUKTECH Screen Controller 0.4 起提供受限的共享 FDS 票据服务。软件只会发送
+电脑的私有局域网 Bridge 地址、刷新间隔、目标型号和固件版本；用户的米家账号、
+密码、Token、AP01 DID、Claude/Codex 登录态都不会发送给共享服务。服务端不接受
+任意 BIN，只能从 SHA-256 固定的 `1.0.2_0031` 原厂镜像构建经过审查的实时加载器。
+
+图形软件操作顺序：
+
+1. 点击“无网关：一键获取部署包”；
+2. 软件确认 AP01 为 `njcuk.enstor.ap01 / 1.0.2_0031` 且米家在线；
+3. 下载并核对 BFNP、大小、SHA-256 与 MD5；
+4. 点击“仅下载验证（不会安装）”；
+5. 验证成功后点击“确认后安装”，并在最终弹窗中明确确认。
+
+共享服务仅解决一次性的 FDS 上传，最终 `miIO.ota` 仍由用户本机登录的米家账号
+发给用户自己的 AP01。安装成功后，日常画面全部走局域网 `/tmp` RAM，不依赖
+共享服务或任何网关。服务协议和自建说明见
+[共享 FDS 服务运维文档](docs/FDS_RELAY_OPERATOR.zh-CN.md)。
+
+#### 高级用户：自己的网关或手动票据
 
 AP01 自身没有小米云端的 FDS 上传配置。把 AP01 的 DID/model 传给
 `/home/genpresignedurl`，会稳定返回 `code=-6`、`invalid config for fds`。

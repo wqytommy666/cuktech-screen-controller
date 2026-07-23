@@ -14,6 +14,7 @@ import json
 import os
 import plistlib
 import random
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,39 @@ class MiCloud:
             if not account["userId"] or not account["passToken"]:
                 raise RuntimeError("米家凭据 JSON 缺少 userId 或 passToken")
             return account
+
+        keychain_service = os.environ.get("CUKTECH_MI_KEYCHAIN_SERVICE", "").strip()
+        if keychain_service:
+            keychain_account = os.environ.get(
+                "CUKTECH_MI_KEYCHAIN_ACCOUNT", "relay"
+            ).strip() or "relay"
+            try:
+                completed = subprocess.run(
+                    [
+                        "/usr/bin/security",
+                        "find-generic-password",
+                        "-s",
+                        keychain_service,
+                        "-a",
+                        keychain_account,
+                        "-w",
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                payload = json.loads(completed.stdout)
+                account = {
+                    "userId": payload.get("userId") or payload.get("user_id"),
+                    "passToken": payload.get("passToken") or payload.get("pass_token"),
+                    "deviceId": payload.get("deviceId") or payload.get("device_id") or "",
+                }
+                if not account["userId"] or not account["passToken"]:
+                    raise RuntimeError("Keychain payload is missing userId or passToken")
+                return account
+            except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError) as exc:
+                raise RuntimeError("无法从 macOS 钥匙串读取米家 Relay 登录态") from exc
 
         preference = prefs or DEFAULT_PREFS
         try:

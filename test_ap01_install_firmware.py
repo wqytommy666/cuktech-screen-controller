@@ -11,6 +11,26 @@ from mi_cloud import MiCloud
 
 
 class InstallFirmwareTests(unittest.TestCase):
+    def test_keychain_credentials_are_loaded_without_printing_tokens(self) -> None:
+        completed = Mock(stdout='{"userId":"10001","passToken":"secret","deviceId":"mac"}')
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "CUKTECH_MI_KEYCHAIN_SERVICE": "test.service",
+                    "CUKTECH_MI_KEYCHAIN_ACCOUNT": "relay",
+                },
+                clear=True,
+            ),
+            patch("mi_cloud.subprocess.run", return_value=completed) as run,
+        ):
+            self.assertEqual(
+                MiCloud._load_account(),
+                {"userId": "10001", "passToken": "secret", "deviceId": "mac"},
+            )
+        command = run.call_args.args[0]
+        self.assertNotIn("secret", command)
+
     def test_windows_json_credentials_are_loaded_without_persisting_tokens(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "mi-credentials.json"

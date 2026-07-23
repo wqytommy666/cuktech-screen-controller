@@ -20,10 +20,13 @@ private let modeFile = artifacts.appendingPathComponent("ap01-mode")
 private let customGIF = artifacts.appendingPathComponent("custom-screen.gif")
 private let quotaGIF = artifacts.appendingPathComponent("quota-dashboard.gif")
 private let otaURLFile = artifacts.appendingPathComponent("ap01-ota-url.txt")
+private let gatewayFreeFirmware = artifacts.appendingPathComponent("ap01-gateway-free-realtime.bin")
 private let launchLabel = bundledSetting(
     "CUKTECHLaunchLabel",
     fallback: "io.github.wqytommy666.cuktech-screen-controller.bridge"
 )
+private let miHomeKeychainService = "com.wqytommy.CUKTECHScreenController.mi-home-owner"
+private let miHomeKeychainAccount = "owner"
 private let otaGuideURL = URL(string: "https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/AP01_FDS_NO_GATEWAY_SOLUTION.zh-CN.md")!
 private let beginnerGuideURL = URL(string: "https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/BEGINNER_GUIDE.zh-CN.md")!
 private let agentSetupPrompt = """
@@ -59,6 +62,14 @@ private func localIPv4() -> String? {
         if let value, !value.isEmpty { return value }
     }
     return nil
+}
+
+private func hasLoggedAP01Request() -> Bool {
+    let log = artifacts.appendingPathComponent("ap01_launchd.log")
+    guard let value = try? String(contentsOf: log, encoding: .utf8) else { return false }
+    return value.split(separator: "\n").contains { line in
+        line.contains("GET /screen.gif") && line.contains(" 200")
+    }
 }
 
 private func redactedNetworkText(_ text: String) -> String {
@@ -97,6 +108,10 @@ final class StreamingProcessRunner {
         let pipe = Pipe()
         task.executableURL = URL(fileURLWithPath: executable)
         task.arguments = arguments
+        var environment = ProcessInfo.processInfo.environment
+        environment["CUKTECH_MI_KEYCHAIN_SERVICE"] = miHomeKeychainService
+        environment["CUKTECH_MI_KEYCHAIN_ACCOUNT"] = miHomeKeychainAccount
+        task.environment = environment
         task.standardOutput = pipe
         task.standardError = pipe
 
@@ -155,7 +170,7 @@ final class OTADeployModel: ObservableObject {
     @Published var fdsModel = ""
     @Published var showAdvanced = false
     @Published var busy = false
-    @Published var status = "等待选择 BFNP 固件"
+    @Published var status = "可直接使用“无网关一键获取部署包”"
     @Published var logText = ""
     @Published var verificationPassed = false
 
@@ -178,6 +193,10 @@ final class OTADeployModel: ObservableObject {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
+        inspectFirmware(url)
+    }
+
+    private func inspectFirmware(_ url: URL, ticket: URL? = nil) {
         busy = true
         status = "正在校验 BFNP 与 SHA-256…"
         verificationPassed = false
@@ -199,6 +218,7 @@ final class OTADeployModel: ObservableObject {
                 let formatted = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
                 DispatchQueue.main.async {
                     self?.firmwareURL = url
+                    if let ticket { self?.ticketURL = ticket }
                     self?.firmwareSHA256 = hash
                     self?.firmwareSize = formatted
                     self?.firmwareValid = true
@@ -217,6 +237,45 @@ final class OTADeployModel: ObservableObject {
                     self?.appendLog("✗ \(error.localizedDescription)\n")
                 }
             }
+        }
+    }
+
+    func prepareGatewayFree() {
+        if hasLoggedAP01Request() {
+            status = "已经检测到 AP01 获取 screen.gif；实时加载器已存在，不要再次 OTA"
+            appendLog("✓ 日志已有 GET /screen.gif 200，已阻止重复安装\n")
+            return
+        }
+        guard let address = localIPv4() else {
+            status = "没有找到 Mac 局域网 IPv4；请先连接与 AP01 相同的 Wi-Fi"
+            appendLog("✗ 未找到可用于 AP01 的局域网地址\n")
+            return
+        }
+        let bridgeURL = "http://\(address):8765/screen.gif"
+        try? FileManager.default.removeItem(at: gatewayFreeFirmware)
+        try? FileManager.default.removeItem(at: otaURLFile)
+        firmwareURL = nil
+        ticketURL = nil
+        firmwareValid = false
+        verificationPassed = false
+        begin(
+            title: "正在进行米家只读预检并申请无网关部署包…",
+            arguments: [
+                projectRoot.appendingPathComponent("ap01_fds_relay_client.py").path,
+                "--bridge-url", bridgeURL,
+                "--refresh-seconds", "300",
+                "--output", gatewayFreeFirmware.path,
+                "--url-output", otaURLFile.path
+            ]
+        ) { [weak self] in
+            guard let self else { return }
+            guard FileManager.default.fileExists(atPath: gatewayFreeFirmware.path),
+                  FileManager.default.fileExists(atPath: otaURLFile.path) else {
+                self.status = "共享服务完成，但本机部署包不完整"
+                return
+            }
+            self.appendLog("✓ 无网关部署包与临时票据已下载到本机\n")
+            self.inspectFirmware(gatewayFreeFirmware, ticket: otaURLFile)
         }
     }
 
@@ -298,6 +357,38 @@ final class OTADeployModel: ObservableObject {
             self?.verificationPassed = true
             self?.status = "下载校验完成 · 未安装、未切换启动分区"
             self?.appendLog("✓ AP01 下载验证通过；本次没有安装固件\n")
+        }
+    }
+
+    func installFirmware() {
+        guard verificationPassed, let firmwareURL, firmwareValid,
+              let ticketURL, ticketReady else {
+            status = "请先完成“仅下载验证”"
+            return
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "确认首次安装实时加载器？"
+        alert.informativeText = "本操作会对 AP01 的 Flash 写入一次，并触发重启。仅适用于 njcuk.enstor.ap01 固件 1.0.2_0031。以后图片和额度刷新只写 RAM，不会重复刷固件。\n\nSHA-256：\(firmwareSHA256)"
+        alert.addButton(withTitle: "确认安装并重启 AP01")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            status = "已取消安装；设备未写入 Flash"
+            return
+        }
+        begin(
+            title: "已确认：正在安装实时加载器并等待 AP01 重启…",
+            arguments: [
+                projectRoot.appendingPathComponent("ap01_install_firmware.py").path,
+                firmwareURL.path,
+                "--install",
+                "--ota-url-file", ticketURL.path,
+                "--timeout", "420"
+            ]
+        ) { [weak self] in
+            self?.verificationPassed = false
+            self?.status = "安装完成；请等待 AP01 请求 /screen.gif"
+            self?.appendLog("✓ AP01 已完成首次安装；后续画面更新只使用 RAM\n")
         }
     }
 
@@ -838,7 +929,7 @@ struct OTADeploymentView: View {
             .padding(22)
         }
         .preferredColorScheme(.dark)
-        .frame(width: 900, height: 720)
+        .frame(width: 900, height: 760)
     }
 
     private var deploymentHeader: some View {
@@ -870,8 +961,8 @@ struct OTADeploymentView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "memorychip.fill").foregroundStyle(.green).font(.title3)
             VStack(alignment: .leading, spacing: 3) {
-                Text("当前页面不会自动安装固件").font(.subheadline.bold())
-                Text("只提供生成临时票据与“仅下载验证”。已经能实时显示的设备无需再次 OTA；日常图片/额度刷新仍写入 RAM，不会反复写 Flash。")
+                Text("只有最后确认时才会安装一次").font(.subheadline.bold())
+                Text("无网关用户可自动获取部署包并先执行“仅下载验证”。真正写入前软件会再次弹窗确认；已经能实时显示的设备无需 OTA，日常图片/额度刷新仍只写 RAM。")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
@@ -883,7 +974,7 @@ struct OTADeploymentView: View {
 
     private var firmwareCard: some View {
         VStack(alignment: .leading, spacing: 13) {
-            stepTitle("1", "固件预检", "同一个 BIN 必须用于上传与下载")
+            stepTitle("1", "部署包预检", "共享服务会自动准备，也可手动选择")
             Button { model.chooseFirmware() } label: {
                 Label("选择 screen-realtime.bin", systemImage: "doc.badge.gearshape")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -904,7 +995,7 @@ struct OTADeploymentView: View {
                     }
                 }
             } else {
-                Text("软件会检查 BFNP 文件头、文件大小和 SHA-256。")
+                Text("普通用户无需准备文件：先点击右侧“无网关一键获取部署包”。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -916,15 +1007,22 @@ struct OTADeploymentView: View {
         VStack(alignment: .leading, spacing: 13) {
             stepTitle("2", "临时 OTA 票据", "票据有时效，不会写入普通日志")
 
+            Button { model.prepareGatewayFree() } label: {
+                Label("无网关：一键获取部署包", systemImage: "wand.and.stars")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.borderedProminent).tint(.orange)
+            .disabled(model.busy)
+
             Button { model.generateTicket() } label: {
-                Label("有 FDS 网关：生成票据", systemImage: "key.horizontal.fill")
+                Label("有自己的网关：生成票据", systemImage: "key.horizontal.fill")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.borderedProminent).tint(.cyan)
             .disabled(model.busy || !model.firmwareValid || !model.gatewayFieldsValid)
 
             Button { model.chooseTicket() } label: {
-                Label("无网关：导入票据文件", systemImage: "square.and.arrow.down")
+                Label("高级：导入已有票据", systemImage: "square.and.arrow.down")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.bordered).disabled(model.busy)
@@ -957,7 +1055,7 @@ struct OTADeploymentView: View {
     private var verificationCard: some View {
         HStack(spacing: 15) {
             VStack(alignment: .leading, spacing: 5) {
-                stepTitle("3", "AP01 下载验证", "只下载、校验 MD5，不安装、不切换启动分区")
+                stepTitle("3", "验证并安装", "先安全下载验证；安装前会再次明确确认")
                 Text(model.status).font(.caption).foregroundStyle(model.verificationPassed ? Color.green : Color.secondary)
                     .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
@@ -971,6 +1069,11 @@ struct OTADeploymentView: View {
             }
             .buttonStyle(.borderedProminent).tint(.green)
             .disabled(model.busy || !model.firmwareValid || !model.ticketReady)
+            Button { model.installFirmware() } label: {
+                Label("确认后安装", systemImage: "arrow.down.app.fill")
+            }
+            .buttonStyle(.borderedProminent).tint(.orange)
+            .disabled(model.busy || !model.verificationPassed)
         }
         .padding(16)
         .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 18, style: .continuous))

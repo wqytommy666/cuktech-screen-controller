@@ -29,6 +29,14 @@ echo "[2/5] 安装运行依赖…"
 .venv/bin/python -m pip install --disable-pip-version-check -r requirements.txt
 .venv/bin/python -c 'import PIL, requests, cryptography'
 
+if .venv/bin/python macos/store_mi_home_keychain.py \
+  --service com.wqytommy.CUKTECHScreenController.mi-home-owner \
+  --account owner; then
+    echo "      米家首次部署登录态已保存到当前用户钥匙串"
+else
+    echo "[提示] 暂未找到米家登录态；日常换图不受影响，首次部署前请登录米家后重新运行本脚本。"
+fi
+
 echo "[3/5] 初始化显示模式…"
 mkdir -p artifacts
 if [[ ! -f artifacts/ap01-mode ]]; then

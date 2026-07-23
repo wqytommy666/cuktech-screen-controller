@@ -29,13 +29,18 @@ CUKTECH Screen Controller provides two ways to control the AP01 display.
 > New to developer tools? Start with the
 > [step-by-step beginner guide](docs/BEGINNER_GUIDE.md).
 
+> **No Xiaomi gateway is required.** A stock AP01 only needs stable power,
+> an online Mi Home pairing, and a computer on the same LAN. The app's
+> gateway-free onboarding action obtains a restricted FDS ticket and still
+> asks for explicit confirmation immediately before the one-time Flash write.
+
 | | Method 1: macOS / Windows app | Method 2: coding agent on macOS / Windows |
 | --- | --- | --- |
 | Best for | Everyday use with a native UI | First-time setup, diagnostics and deep customization |
 | Interface | CUKTECH Screen Controller desktop app | Claude Code, Codex, OpenCode, WorkBuddy or another terminal-capable agent |
 | Custom images | Choose PNG, JPG or GIF and push | Convert, validate and deploy through repository tools |
 | Quota dashboard | Live Claude and Codex usage on both systems | Configurable renderer with the same account collectors |
-| First-time loader | BFNP preflight and OTA ticket handoff | Complete compatibility, build and installation workflow |
+| First-time loader | Gateway-free package, BFNP preflight and confirmed install | Complete compatibility, build and installation workflow |
 | Daily refresh | Wi-Fi update to AP01 RAM | Wi-Fi update to AP01 RAM |
 
 ## Platform support
@@ -45,7 +50,7 @@ The complete daily-use workflow is available on both platforms:
 - **macOS:** native SwiftUI app for Apple Silicon, macOS 14 or later;
 - **Windows:** native-feeling PySide6 app for 64-bit Windows 10 and 11;
 - both apps provide live preview, custom images/GIFs, Claude/Codex quota mode,
-  Bridge status, login startup, onboarding, and OTA ticket handoff;
+  Bridge status, login startup, onboarding, and gateway-free OTA setup;
 - the **Python and coding-agent toolkit** also runs on both systems for image
   conversion, validation, diagnostics and deeper customization;
 - Windows uses `scripts/setup-windows.ps1` and
@@ -59,11 +64,11 @@ Download the latest **CUKTECH Screen Controller** package from
 [GitHub Releases](https://github.com/wqytommy666/cuktech-screen-controller/releases/latest).
 
 - **Windows 10/11 x64:** extract
-  `CUKTECH-Screen-Controller-0.3.0-Windows-x64.zip`, then double-click
+  `CUKTECH-Screen-Controller-0.4.0-Windows-x64.zip`, then double-click
   **`Install CUKTECH Screen Controller.cmd`**. See the
   [Windows guide](docs/WINDOWS_GUIDE.md).
 - **Apple Silicon macOS:** extract
-  `CUKTECH-Screen-Controller-v0.3.0-macOS-arm64.zip`, then double-click
+  `CUKTECH-Screen-Controller-v0.4.0-macOS-arm64.zip`, then double-click
   **`Install CUKTECH Screen Controller.command`**.
 
 Both installers enable the login background Bridge. The Windows package is
@@ -76,6 +81,8 @@ first run.
 - host computer and AP01 on the same non-isolated LAN;
 - Claude Desktop and the official Codex app already signed in for quota mode;
 - internet access for live quotas and first-time OTA operations.
+- users do **not** need to buy a Xiaomi gateway; the shared FDS relay is used
+  only during the one-time loader setup.
 
 ### Network and device preparation
 
@@ -98,9 +105,10 @@ first run.
 
 See the full [preparation and connectivity checklist](docs/PREPARATION_CHECKLIST.md).
 
-The app can show bridge status, switch between the quota dashboard and custom
-artwork, preserve animated GIFs, select `contain` / `cover` / `stretch`, and
-guide BFNP preflight plus temporary OTA ticket handoff.
+The app can show Bridge status, switch between quota and custom artwork,
+preserve animated GIFs, select `contain` / `cover` / `stretch`, and automate
+the gateway-free package, BFNP preflight, download-only verification and
+explicitly confirmed installation.
 
 <div align="center">
   <img src="docs/images/cuktech-screen-controller-beginner-guide.jpg" alt="CUKTECH Screen Controller beginner guide" width="700" />
@@ -110,9 +118,9 @@ guide BFNP preflight plus temporary OTA ticket handoff.
   <img src="docs/images/cuktech-screen-controller-ota.jpg" alt="First deployment and OTA ticket handoff" width="700" />
 </div>
 
-> The app never silently installs firmware. Its **First deployment / OTA**
-> window performs preflight, ticket handoff and download-only verification.
-> A stock AP01 still needs the compatible one-time loader workflow below.
+> The app never silently installs firmware. It performs read-only Mi Home
+> checks, obtains and verifies the package, then presents a separate explicit
+> confirmation immediately before the one-time loader install.
 
 ## Method 2 — Give this repository to a coding agent
 
@@ -294,6 +302,26 @@ Start the bridge before the final installation. A bridge log such as
 `AP01_IP "GET /screen.gif" 200` confirms end-to-end operation.
 
 ### Xiaomi FDS upload prerequisite
+
+#### Normal users: no gateway required
+
+CUKTECH Screen Controller 0.4 includes a restricted shared FDS relay flow. The
+desktop app sends only its private-LAN Bridge URL, refresh interval, target
+model and firmware version. Mi Home credentials, AP01 DID, passwords, tokens,
+and Claude/Codex sessions never leave the owner's computer. The relay rejects
+arbitrary firmware uploads and builds only the reviewed loader from a
+SHA-256-pinned `1.0.2_0031` stock image.
+
+The app checks model/version and online state, downloads and verifies the
+BFNP image, performs a download-only device validation, and finally asks for
+explicit install confirmation. The user's own Mi Home session still sends the
+OTA command to their own AP01. After that one-time step, all screens use LAN
+and RAM; neither the shared relay nor a gateway is needed for daily use.
+
+See the [relay operator guide](docs/FDS_RELAY_OPERATOR.md) for the protocol,
+deployment and security boundaries.
+
+#### Advanced users: own gateway or manual ticket
 
 The AP01 itself has no server-side FDS upload configuration. Passing the AP01
 DID/model to `/home/genpresignedurl` therefore returns `code=-6` (`invalid

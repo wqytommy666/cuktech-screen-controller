@@ -63,8 +63,9 @@ when macOS asks. Windows uses current-user DPAPI to read Claude Desktop's local
 session in memory. Never paste cookies, passwords, or Keychain data into a chat.
 
 For a first loader installation, have the target AP01 owner's Mi Home account
-available and use the same device region. An account without an FDS-capable
-gateway may require the app's OTA ticket-handoff workflow. Keep Xiaomi
+available and use the same device region. The gateway-free action uses the
+restricted shared FDS relay, so the AP01 owner does not need to buy a gateway
+or send Xiaomi credentials to the relay. Keep Xiaomi
 credentials, DIDs, signed URLs, firmware binaries, and generated artifacts out
 of GitHub.
 

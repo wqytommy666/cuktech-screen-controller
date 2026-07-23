@@ -10,7 +10,7 @@ diagnostics, and first-time OTA ticket handoff.
 ## Install the app (recommended)
 
 1. Open [GitHub Releases](https://github.com/wqytommy666/cuktech-screen-controller/releases/latest).
-2. Download `CUKTECH-Screen-Controller-0.3.0-Windows-x64.zip`.
+2. Download `CUKTECH-Screen-Controller-0.4.0-Windows-x64.zip`.
 3. Use **Extract All**. Do not launch it from Explorer's ZIP preview.
 4. Double-click `Install CUKTECH Screen Controller.cmd`.
 5. Open the app from the Start menu.
@@ -88,15 +88,15 @@ DHCP address.
 Do **not** repeat OTA when AP01 can already show custom content. A stock unit
 needs one loader matching model `njcuk.enstor.ap01` and firmware `1.0.2_0031`.
 The Windows dialog can validate BFNP/SHA-256, import or create a temporary FDS
-ticket, and run download-only verification without installing or switching a
-boot slot.
+ticket, obtain a restricted gateway-free deployment package, run download-only
+verification, and require a separate confirmation before the one-time install.
 
 Windows has no Mi Home plist. Cloud operations therefore accept a local JSON
 selected for the current process only; see `mi-credentials.example.json` in
-the ZIP. Never commit or share that file. AP01 itself is not FDS-enabled, so an
-account without a real `lumi.gateway.*` or `xiaomi.gateway.*` identity must get
-the same BIN uploaded by a trusted gateway account and reuse its short-lived
-URL.
+the ZIP. Never commit or share that file. AP01 itself is not FDS-enabled, but
+the gateway-free action can use the restricted shared relay without sending
+that JSON, the AP01 DID or arbitrary firmware to the relay. See the
+[relay operator and security guide](FDS_RELAY_OPERATOR.md).
 
 ## Run from source
 

@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMenu,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -58,7 +59,7 @@ from windows.runtime import (
 )
 
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 WINDOWS_GUIDE = "https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/WINDOWS_GUIDE.zh-CN.md"
 OTA_GUIDE = "https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/AP01_FDS_NO_GATEWAY_SOLUTION.zh-CN.md"
 AGENT_PROMPT = """请使用这个公开仓库帮我配置酷态科 AP01 万向屏：
@@ -380,6 +381,7 @@ class OTADeploymentDialog(QDialog):
         self.pool = QThreadPool.globalInstance()
         self.firmware: Path | None = None
         self.ticket: Path | None = paths.ota_url_file if paths.ota_url_file.exists() else None
+        self.download_verified_ok = False
         configured_credentials = os.environ.get("CUKTECH_MI_CREDENTIALS", "").strip()
         self.credentials: Path | None = Path(configured_credentials) if configured_credentials else None
         self.setWindowTitle("首次部署 / OTA 交接")
@@ -395,7 +397,7 @@ class OTADeploymentDialog(QDialog):
         heading = QLabel("首次部署 / OTA 交接")
         heading.setObjectName("title")
         title.addWidget(heading)
-        title.addWidget(_muted("AP01 1.0.2_0031 · 下载验证不会安装或切换启动分区"))
+        title.addWidget(_muted("AP01 1.0.2_0031 · 无网关自动准备 · 安装前再次确认"))
         header.addLayout(title)
         header.addStretch()
         guide = QPushButton("查看完整说明")
@@ -407,7 +409,7 @@ class OTADeploymentDialog(QDialog):
         header.addWidget(done)
         root.addLayout(header)
 
-        warning = QLabel("当前页面不会自动安装固件。已经能显示自定义内容的 AP01 无需再次 OTA。")
+        warning = QLabel("只有点击确认安装后才会写入一次 Flash；已经能显示自定义内容的 AP01 无需再次 OTA。")
         warning.setWordWrap(True)
         warning.setObjectName("warningText")
         warning.setStyleSheet("background:#26180D;border:1px solid #71421F;border-radius:10px;padding:10px;color:#FDBA74;")
@@ -438,6 +440,10 @@ class OTADeploymentDialog(QDialog):
         ticket_actions.addWidget(import_ticket)
         ticket_actions.addWidget(self.generate_button)
         ticket_layout.addLayout(ticket_actions)
+        self.shared_button = QPushButton("无网关：一键获取部署包")
+        self.shared_button.setObjectName("orange")
+        self.shared_button.clicked.connect(self.prepare_gateway_free)
+        ticket_layout.addWidget(self.shared_button)
         credential_row = QHBoxLayout()
         choose_credentials = QPushButton("选择米家登录 JSON")
         choose_credentials.clicked.connect(self.choose_credentials)
@@ -477,8 +483,12 @@ class OTADeploymentDialog(QDialog):
         self.verify_button = QPushButton("开始下载验证")
         self.verify_button.setObjectName("primary")
         self.verify_button.clicked.connect(self.verify_download)
+        self.install_button = QPushButton("验证后确认安装")
+        self.install_button.clicked.connect(self.install_firmware)
+        self.install_button.setEnabled(False)
         verify_row.addWidget(self.copy_button)
         verify_row.addWidget(self.verify_button)
+        verify_row.addWidget(self.install_button)
         verify_layout.addLayout(verify_row)
         root.addWidget(verify_card)
 
@@ -586,6 +596,74 @@ class OTADeploymentDialog(QDialog):
             arguments += ["--fds-did", did, "--fds-model", model]
         self.run_operation("正在生成临时 FDS 票据…", lambda: self.helper(arguments), self.ticket_generated)
 
+    def relay_helper(self, arguments: list[str]) -> str:
+        environment = os.environ.copy()
+        environment["CUKTECH_DATA_ROOT"] = str(self.paths.data_root)
+        if self.credentials:
+            environment["CUKTECH_MI_CREDENTIALS"] = str(self.credentials)
+        completed = subprocess.run(
+            self_command("--relay-helper", *arguments),
+            cwd=str(self.paths.root),
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=720,
+            check=False,
+        )
+        output = (completed.stdout or "") + (completed.stderr or "")
+        if completed.returncode:
+            raise RuntimeError(_redact_urls(output.strip() or f"命令退出码 {completed.returncode}"))
+        return _redact_urls(output)
+
+    def prepare_gateway_free(self) -> None:
+        try:
+            existing_log = self.paths.log_file.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            existing_log = ""
+        if any("GET /screen.gif" in line and " 200" in line for line in existing_log.splitlines()):
+            self.status.setText("已经检测到 AP01 获取 screen.gif；实时加载器已存在，不要再次 OTA")
+            self.append_log("日志已有 GET /screen.gif 200，已阻止重复安装。\n")
+            return
+        if not self.credentials and not os.environ.get("CUKTECH_MI_CREDENTIALS"):
+            self.status.setText("请先选择 AP01 所属米家账号的登录 JSON")
+            return
+        self.paths.gateway_free_firmware.unlink(missing_ok=True)
+        self.paths.ota_url_file.unlink(missing_ok=True)
+        self.firmware = None
+        self.ticket = None
+        self.download_verified_ok = False
+        self.install_button.setEnabled(False)
+        arguments = [
+            "--bridge-url",
+            local_screen_url(),
+            "--refresh-seconds",
+            "300",
+            "--output",
+            str(self.paths.gateway_free_firmware),
+            "--url-output",
+            str(self.paths.ota_url_file),
+        ]
+        self.run_operation(
+            "正在进行米家只读预检并申请无网关部署包…",
+            lambda: self.relay_helper(arguments),
+            self.gateway_free_ready,
+        )
+
+    def gateway_free_ready(self, output: str) -> None:
+        firmware = self.paths.gateway_free_firmware
+        ticket = self.paths.ota_url_file
+        if not firmware.exists() or not ticket.exists() or firmware.read_bytes()[:4] != b"BFNP":
+            self.status.setText("共享服务完成，但本机部署包不完整")
+            return
+        digest = hashlib.sha256(firmware.read_bytes()).hexdigest()
+        self.firmware = firmware
+        self.ticket = ticket
+        self.firmware_label.setText(f"{firmware.name} · {firmware.stat().st_size / 1024 / 1024:.2f} MB")
+        self.hash_label.setText(f"SHA-256  {digest}")
+        self.ticket_label.setText(str(ticket))
+        self.status.setText("无网关部署包已就绪；请执行仅下载验证")
+        self.append_log(output + "\n无网关部署包与临时票据已通过本机预检。\n")
+
     def ticket_generated(self, output: str) -> None:
         self.ticket = self.paths.ota_url_file if self.paths.ota_url_file.exists() else None
         self.ticket_label.setText(str(self.ticket) if self.ticket else "命令完成，但没有生成票据")
@@ -603,11 +681,50 @@ class OTADeploymentDialog(QDialog):
         self.run_operation("正在让 AP01 仅下载并校验…", lambda: self.helper(arguments), self.download_verified)
 
     def download_verified(self, output: str) -> None:
+        self.download_verified_ok = True
+        self.install_button.setEnabled(True)
         self.status.setText("下载校验完成 · 未安装、未切换启动分区")
         self.status.setObjectName("successText")
         self.status.style().unpolish(self.status)
         self.status.style().polish(self.status)
         self.append_log(output + "\nAP01 下载验证通过；本次没有安装固件。\n")
+
+    def install_firmware(self) -> None:
+        if not self.download_verified_ok or not self.firmware or not self.ticket:
+            self.status.setText("请先完成仅下载验证")
+            return
+        answer = QMessageBox.warning(
+            self,
+            "确认首次安装实时加载器",
+            "本操作会对 AP01 Flash 写入一次并触发重启。\n"
+            "仅适用于 njcuk.enstor.ap01 固件 1.0.2_0031。\n"
+            "以后图片和额度刷新只写 RAM，不会重复刷固件。\n\n"
+            "是否确认安装？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            self.status.setText("已取消安装；设备未写入 Flash")
+            return
+        arguments = [
+            str(self.firmware),
+            "--install",
+            "--ota-url-file",
+            str(self.ticket),
+            "--timeout",
+            "420",
+        ]
+        self.run_operation(
+            "已确认：正在安装并等待 AP01 重启…",
+            lambda: self.helper(arguments),
+            self.install_finished,
+        )
+
+    def install_finished(self, output: str) -> None:
+        self.download_verified_ok = False
+        self.install_button.setEnabled(False)
+        self.status.setText("安装完成；请等待 AP01 请求 /screen.gif")
+        self.append_log(output + "\nAP01 首次安装完成；后续画面更新只使用 RAM。\n")
 
     def copy_ticket(self) -> None:
         if not self.ticket:
@@ -623,7 +740,7 @@ class OTADeploymentDialog(QDialog):
         self.status.setText(title)
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)
-        for button in (self.generate_button, self.verify_button, self.copy_button):
+        for button in (self.shared_button, self.generate_button, self.verify_button, self.copy_button, self.install_button):
             button.setEnabled(False)
         worker = Worker(callback)
         worker.signals.result.connect(success)
@@ -634,8 +751,9 @@ class OTADeploymentDialog(QDialog):
     def operation_finished(self) -> None:
         self.progress.setVisible(False)
         self.progress.setRange(0, 1)
-        for button in (self.generate_button, self.verify_button, self.copy_button):
+        for button in (self.shared_button, self.generate_button, self.verify_button, self.copy_button):
             button.setEnabled(True)
+        self.install_button.setEnabled(self.download_verified_ok)
 
     def append_log(self, text: str) -> None:
         self.log.moveCursor(QTextCursor.MoveOperation.End)
@@ -774,7 +892,7 @@ class MainWindow(QMainWindow):
         ota = QPushButton("首次部署 / OTA 交接…")
         ota.clicked.connect(lambda: OTADeploymentDialog(self.paths, self).exec())
         controls_layout.addWidget(ota)
-        controls_layout.addWidget(_muted("可导入 FDS 票据；下载验证不会安装。", wrap=False))
+        controls_layout.addWidget(_muted("无网关可一键准备；真正安装前再次确认。", wrap=False))
         self.progress = QProgressBar()
         self.progress.setRange(0, 1)
         self.progress.setValue(0)

@@ -54,6 +54,7 @@ class AppPaths:
     pid_file: Path
     lock_file: Path
     ota_url_file: Path
+    gateway_free_firmware: Path
 
     @classmethod
     def discover(cls, data_root: Path | None = None) -> "AppPaths":
@@ -73,6 +74,7 @@ class AppPaths:
             pid_file=artifacts / "ap01_windows.pid",
             lock_file=artifacts / "ap01_windows.lock",
             ota_url_file=artifacts / "ap01-ota-url.txt",
+            gateway_free_firmware=artifacts / "ap01-gateway-free-realtime.bin",
         )
 
     def ensure(self) -> None:

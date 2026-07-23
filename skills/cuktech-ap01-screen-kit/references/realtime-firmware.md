@@ -46,6 +46,21 @@ Never pass an already patched real-time image back through
 
 ## Validate and install
 
+### Gateway-free desktop flow
+
+CUKTECH Screen Controller 0.4 can obtain the exact per-LAN loader from the
+restricted shared FDS relay. The client first confirms the local Mi Home AP01
+is online and exactly `njcuk.enstor.ap01 / 1.0.2_0031`, sends only its private
+`http://IP:8765/screen.gif` URL and refresh interval, then verifies BFNP, size,
+SHA-256, MD5 and the pinned Xiaomi OTA CDN host. Perform `download-only` first
+and require explicit user confirmation immediately before `--install`.
+
+The relay must never accept an arbitrary BIN or receive the AP01 owner's Xiaomi
+credentials/DID. It builds from the reviewed stock SHA-256 and uses the
+operator's gateway identity only for FDS upload. Daily updates do not use it.
+
+### Manual or operator flow
+
 Start the bridge before installation. Validate transport first, then install
 the exact prebuilt image without rebuilding it:
 

@@ -24,7 +24,7 @@ macOS 版使用同一套 AP01 Bridge 与画面格式，可以直接切换 Claude
 ## 方法一：安装 Windows 软件（推荐）
 
 1. 打开 [GitHub Releases](https://github.com/wqytommy666/cuktech-screen-controller/releases/latest)；
-2. 下载 **`CUKTECH-Screen-Controller-0.3.0-Windows-x64.zip`**；
+2. 下载 **`CUKTECH-Screen-Controller-0.4.0-Windows-x64.zip`**；
 3. 右键 ZIP，选择“全部解压”。不要在压缩包预览窗口里直接运行；
 4. 双击 **`Install CUKTECH Screen Controller.cmd`**；
 5. 安装后从开始菜单打开 **CUKTECH Screen Controller**；
@@ -129,10 +129,12 @@ http://192.168.1.20:8765/screen.gif
 
 Windows 版可完成：
 
+- 点击“无网关：一键获取部署包”，不需要用户购买网关或准备 BIN；
 - 检查 `screen-realtime.bin` 的 BFNP 文件头和 SHA-256；
 - 导入别人生成的短时 FDS URL；
 - 使用具备 FDS 配置的网关账号生成票据；
 - 对 AP01 执行 `download-only` 下载与 MD5 验证；
+- 下载验证成功后，经过单独确认完成一次性安装；
 - 自动在日志中隐藏签名 URL 的查询参数。
 
 Windows 没有 macOS 米家 App 的 plist。需要云端操作时，软件只在本次进程中读取
@@ -146,10 +148,10 @@ Windows 没有 macOS 米家 App 的 plist。需要云端操作时，软件只在
 }
 ```
 
-不要把该文件提交到 GitHub、截图或发送给他人。AP01 本身不能申请 FDS 上传地址；
-如果账号里没有 `lumi.gateway.*` 或 `xiaomi.gateway.*` 网关，可让可信网关账号只
-上传相同 BIN，再把短时 URL 交回 AP01 账号。完整说明见
-[无外置网关 FDS 方案](AP01_FDS_NO_GATEWAY_SOLUTION.zh-CN.md)。
+不要把该文件提交到 GitHub、截图或发送给他人。AP01 本身不能申请 FDS 上传地址，
+但普通用户可直接使用受限共享服务。共享服务只接收私有 Bridge 地址和刷新间隔，
+不会接收该 JSON、设备 DID 或用户上传的 BIN。完整说明见
+[共享 FDS 服务](FDS_RELAY_OPERATOR.zh-CN.md)。
 
 ## 方法二：从源码运行
 

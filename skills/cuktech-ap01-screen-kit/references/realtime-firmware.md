@@ -4,6 +4,11 @@ The verified binary offsets in this kit apply only to CUKTECH AP01 firmware
 `1.0.2_0031`, model `njcuk.enstor.ap01`. Refuse to reuse these offsets on a
 different version; port the reverse-engineered hooks first.
 
+Do not upgrade a compatible `1.0.2_0031` unit to `1.0.2_0041`. The verified
+`0041` image rejects the current unsigned third-party Loader, retains the OTA
+downgrade block, and has a different binary layout. An FDS relay or external
+gateway solves transport only and cannot bypass this signature gate.
+
 ## Prerequisites
 
 - Log into the required services on the computer that will run the Bridge.

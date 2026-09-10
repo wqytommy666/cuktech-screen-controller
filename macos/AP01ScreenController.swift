@@ -960,7 +960,7 @@ struct OTADeploymentView: View {
                         .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(Color.cyan.opacity(0.12), in: Capsule())
                 }
-                Text("适用于 AP01 1.0.2_0031 · 上传账号与 AP01 账号可以分离")
+                Text("仅适用于 AP01 1.0.2_0031 · 0041 已启用签名限制")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()

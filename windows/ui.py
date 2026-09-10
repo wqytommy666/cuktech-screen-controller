@@ -398,7 +398,7 @@ class OTADeploymentDialog(QDialog):
         heading = QLabel("首次部署 / OTA 交接")
         heading.setObjectName("title")
         title.addWidget(heading)
-        title.addWidget(_muted("AP01 1.0.2_0031 · 无网关自动准备 · 安装前再次确认"))
+        title.addWidget(_muted("仅支持 AP01 1.0.2_0031 · 0041 已启用签名限制"))
         header.addLayout(title)
         header.addStretch()
         guide = QPushButton("查看完整说明")

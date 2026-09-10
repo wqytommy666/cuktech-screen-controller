@@ -28,11 +28,25 @@ from mi_cloud import MODEL, MiCloud
 
 API_VERSION = 1
 SUPPORTED_FIRMWARE = "1.0.2_0031"
+SIGNED_OTA_FIRMWARE = "1.0.2_0041"
 EXPECTED_FIRMWARE_SIZE = 6_804_520
 MAX_FIRMWARE_SIZE = 8 * 1024 * 1024
 DEFAULT_DISCOVERY_URL = (
     "https://api.github.com/gists/6e3d9ecbd917f0c1252caac1ad620978"
 )
+
+
+def firmware_compatibility_error(version: str) -> str:
+    if version == SIGNED_OTA_FIRMWARE:
+        return (
+            f"AP01 固件为 {version}；该版本会拒绝当前未签名第三方 Loader，"
+            f"且已知米家 OTA 流程不能降级到 {SUPPORTED_FIRMWARE}，已停止。"
+            "共享中转或外置网关只能解决 FDS 传输，不能绕过固件签名校验"
+        )
+    return (
+        f"AP01 固件为 {version or '无法读取'}；共享加载器只支持 "
+        f"{SUPPORTED_FIRMWARE}，已停止"
+    )
 
 
 def validate_bridge_url(value: str) -> str:
@@ -132,10 +146,7 @@ def check_local_ap01() -> dict[str, Any]:
         if isinstance(result, dict):
             version = str(result.get("fw_ver") or result.get("fw_version") or "").strip()
     if version != SUPPORTED_FIRMWARE:
-        shown = version or "无法读取"
-        raise RuntimeError(
-            f"AP01 固件为 {shown}；共享加载器只支持 {SUPPORTED_FIRMWARE}，已停止"
-        )
+        raise RuntimeError(firmware_compatibility_error(version))
     return {
         "model": MODEL,
         "firmware": version,

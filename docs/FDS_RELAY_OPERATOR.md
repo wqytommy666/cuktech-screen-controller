@@ -54,18 +54,24 @@ maintenance.
 
 On macOS, `macos/install-public-fds-relay-owner.sh` installs the origin and
 discovery-updating tunnel as login services. The bundled tunnel runner removes
-inherited desktop proxy variables and forces HTTP/2 over TCP. This avoids the
-common combination where a proxy returns a `198.18.0.0/15` Fake-IP while
-QUIC/UDP never reaches a Cloudflare edge. Discovery is marked offline at
+inherited desktop proxy variables and lets `cloudflared` select QUIC or HTTP/2
+by default. Operators can set `CUKTECH_RELAY_PROTOCOL=quic` or
+`CUKTECH_RELAY_PROTOCOL=http2` when their network permits only one transport;
+do not pin a protocol without first checking outbound port 7844. Discovery is marked offline at
 startup and exit, and is only enabled after the new public URL passes an
 external `/health` probe. The probe uses DoH so a brief NXDOMAIN during Quick
 Tunnel creation is not retained by the host's negative DNS cache.
 
+Quick Tunnels are disposable development ingress and have no uptime guarantee.
+Use a Cloudflare Named Tunnel on an owned hostname, or an equivalent stable
+HTTPS ingress, for a long-running public relay.
+
 If discovery says online but a `trycloudflare.com` hostname returns NXDOMAIN,
 that disposable Quick Tunnel has expired. Restart the updated tunnel runner;
 do not leave clients pointed at the stale URL. Repeated
-`Failed to dial a quic connection` messages with `198.18.*` identify the
-Fake-IP/QUIC failure handled by the HTTP/2 runner.
+transport errors against `198.18.*` identify a Fake-IP/proxy route; compare the
+QUIC and HTTP/2 connectivity preflight rather than assuming one protocol works
+everywhere.
 
 The relay only builds and uploads the verified image. The owner's local Mi
 Home session still sends the final OTA command to their own AP01, after the

@@ -119,6 +119,12 @@ class RelayDownloadTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "维护"):
                 client.resolve_relay_url(discovery_url="https://example.invalid/relay.json")
 
+    def test_0041_error_distinguishes_signature_from_fds_transport(self) -> None:
+        message = client.firmware_compatibility_error("1.0.2_0041")
+        self.assertIn("拒绝当前未签名第三方 Loader", message)
+        self.assertIn("不能绕过固件签名校验", message)
+        self.assertIn("不能降级", message)
+
 
 if __name__ == "__main__":
     unittest.main()

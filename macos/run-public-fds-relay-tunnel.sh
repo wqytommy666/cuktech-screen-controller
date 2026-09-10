@@ -6,6 +6,7 @@ GIST_ID="${CUKTECH_RELAY_DISCOVERY_GIST:-}"
 CLOUDFLARED="${CUKTECH_CLOUDFLARED:-$HOME/.local/bin/cloudflared}"
 GH="${CUKTECH_GH:-/opt/homebrew/bin/gh}"
 DOH_URL="${CUKTECH_RELAY_DOH_URL:-https://cloudflare-dns.com/dns-query}"
+TUNNEL_PROTOCOL="${CUKTECH_RELAY_PROTOCOL:-auto}"
 STATE="$HOME/Library/Application Support/CUKTECH Screen Controller/fds-relay"
 DISCOVERY="$STATE/cuktech-relay-service.json"
 
@@ -51,6 +52,10 @@ if [[ ! -x "$CLOUDFLARED" || ! -x "$GH" ]]; then
   echo "cloudflared and gh are required" >&2
   exit 2
 fi
+if [[ "$TUNNEL_PROTOCOL" != "auto" && "$TUNNEL_PROTOCOL" != "quic" && "$TUNNEL_PROTOCOL" != "http2" ]]; then
+  echo "CUKTECH_RELAY_PROTOCOL must be auto, quic, or http2" >&2
+  exit 2
+fi
 
 mkdir -p "$STATE"
 chmod 700 "$STATE"
@@ -71,14 +76,16 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 PUBLISHED=""
-# Proxy clients commonly synthesize 198.18.0.0/15 Fake-IP answers.  QUIC then
-# attempts UDP through that route and can remain alive while never reaching a
-# Cloudflare edge.  The relay only carries small HTTPS requests, so HTTP/2 over
-# TCP is the more compatible transport.  Do not inherit desktop proxy variables
-# here; cloudflared establishes its own outbound tunnel.
+# Proxy clients commonly synthesize 198.18.0.0/15 Fake-IP answers.  Older
+# cloudflared/proxy combinations could leave QUIC alive without reaching an
+# edge, but forcing HTTP/2 breaks networks that block outbound TCP 7844 while
+# still routing UDP 7844 correctly.  Let cloudflared's connectivity preflight
+# choose by default; operators can pin quic/http2 with CUKTECH_RELAY_PROTOCOL.
+# Do not inherit desktop proxy variables here because cloudflared establishes
+# its own edge connection through the active system route.
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
     -u http_proxy -u https_proxy -u all_proxy \
-  "$CLOUDFLARED" tunnel --protocol http2 --no-autoupdate --url "$ORIGIN" 2>&1 | \
+  "$CLOUDFLARED" tunnel --protocol "$TUNNEL_PROTOCOL" --no-autoupdate --url "$ORIGIN" 2>&1 | \
 while IFS= read -r line; do
   print -r -- "$line"
   URL="$(print -r -- "$line" | /usr/bin/grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' | /usr/bin/tail -1 || true)"

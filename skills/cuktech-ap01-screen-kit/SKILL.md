@@ -63,6 +63,9 @@ artifacts into a shareable project.
   from source) on Private networks only.
 - Treat the firmware patch as specific to model `njcuk.enstor.ap01`, firmware
   `1.0.2_0031`; do not reuse its offsets on another build.
+- Treat `1.0.2_0041` as unsupported. It rejects the current unsigned Loader and
+  retains the known OTA downgrade block; an FDS relay or gateway cannot bypass
+  the signature gate.
 - Start the bridge before installing and require a logged AP01
   `GET /screen.gif` after reboot.
 - Install the real-time firmware once. Perform later screen updates through

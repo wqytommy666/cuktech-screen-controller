@@ -34,6 +34,13 @@ CUKTECH Screen Controller provides two ways to control the AP01 display.
 > gateway-free onboarding action obtains a restricted FDS ticket and still
 > asks for explicit confirmation immediately before the one-time Flash write.
 
+> [!CAUTION]
+> **Do not upgrade a customizable `1.0.2_0031` display to `1.0.2_0041`.** The
+> verified `0041` image rejects the current unsigned third-party Loader, and
+> the known Mi Home OTA path cannot downgrade it. An FDS relay or external
+> gateway does not bypass this signature gate. See the
+> [AP01 firmware compatibility status](docs/AP01_FIRMWARE_STATUS.md).
+
 | | Method 1: macOS / Windows app | Method 2: coding agent on macOS / Windows |
 | --- | --- | --- |
 | Best for | Everyday use with a native UI | First-time setup, diagnostics and deep customization |

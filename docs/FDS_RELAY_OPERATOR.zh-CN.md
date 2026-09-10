@@ -87,11 +87,16 @@ curl --noproxy '*' http://127.0.0.1:8790/health
 ./macos/install-public-fds-relay-owner.sh /private/path/ap01-1.0.2_0031.bin
 ```
 
-随附的隧道脚本会清除桌面代理环境变量，并强制使用 HTTP/2/TCP，避免 Clash 等
-代理的 Fake-IP 与 QUIC/UDP 组合导致 `cloudflared` 进程仍在、实际隧道却无法连通。
+随附的隧道脚本会清除桌面代理环境变量，并默认让 `cloudflared` 自动选择 QUIC 或
+HTTP/2。网络只允许其中一种传输时可设置 `CUKTECH_RELAY_PROTOCOL=quic` 或
+`CUKTECH_RELAY_PROTOCOL=http2`，不要在未检测端口 `7844` 前固定协议。
 每次启动和退出时 discovery 会先标记为离线；只有新的公开 URL 通过外网
 `/health` 检查后才会重新标记在线。健康检查使用 DoH，避免刚创建域名的短暂
 `NXDOMAIN` 被本机 DNS 负缓存。
+
+Quick Tunnel 是临时调试入口，没有稳定性保证。长期公开服务应改用自有域名的
+Cloudflare Named Tunnel（或等价的稳定 HTTPS 入口），避免随机域名失效导致所有
+用户的“一键获取部署包”同时离线。
 
 公开 HTTPS 地址写入发布维护者的 Relay discovery JSON（仓库中的
 `relay-service.json` 是格式示例；官方客户端当前从维护者公开 Gist 读取）：

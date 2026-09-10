@@ -90,6 +90,9 @@ operations below as different workflows:
 ## Non-negotiable checks
 
 - Never guess firmware offsets or reuse the patch on another build.
+- Treat `1.0.2_0041` as unsupported: it rejects the current unsigned Loader
+  and the known Mi Home OTA path cannot downgrade it. FDS transport does not
+  bypass firmware signing. Stop before build or delivery on that version.
 - Never OTA an already real-time-patched image through `ap01_custom_ota.py`.
 - Never run OTA merely to update artwork or quota values.
 - Never force an old IP onto the Bridge until the router client/DHCP tables

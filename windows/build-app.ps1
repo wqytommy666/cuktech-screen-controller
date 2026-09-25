@@ -11,12 +11,12 @@ Set-Location $Root
 Write-Host "CUKTECH Screen Controller · Windows build"
 Write-Host "==========================================="
 
-if (Get-Command py -ErrorAction SilentlyContinue) {
-    $Launcher = "py"
-    $LauncherArgs = @("-3")
-} elseif (Get-Command python -ErrorAction SilentlyContinue) {
+if (Get-Command python -ErrorAction SilentlyContinue) {
     $Launcher = "python"
     $LauncherArgs = @()
+} elseif (Get-Command py -ErrorAction SilentlyContinue) {
+    $Launcher = "py"
+    $LauncherArgs = @("-3")
 } else {
     throw "Python 3.10+ was not found."
 }
@@ -28,17 +28,24 @@ $BuildVenv = Join-Path $Root ".venv-windows-build"
 $Python = Join-Path $BuildVenv "Scripts\python.exe"
 if (-not (Test-Path $Python)) {
     & $Launcher @LauncherArgs -m venv $BuildVenv
+    if ($LASTEXITCODE -ne 0) { throw "Build environment creation failed." }
 }
 if (-not $SkipDependencies) {
     & $Python -m pip install --disable-pip-version-check -r requirements-windows-app.txt
+    if ($LASTEXITCODE -ne 0) { throw "Build dependency installation failed." }
 }
 & $Python -c "import PIL, PySide6, cryptography, PyInstaller"
+if ($LASTEXITCODE -ne 0) { throw "Build dependency import check failed." }
 
 $BuildRoot = Join-Path $Root ".build\windows"
 $DistRoot = Join-Path $Root "dist\windows"
 $Icon = Join-Path $BuildRoot "CUKTECHScreenController.ico"
+$LogoSource = Join-Path $Root "macos\AP01Logo.png"
+$ProviderIcons = Join-Path $Root "reference\provider-icons"
+$EntryPoint = Join-Path $Root "windows\AP01ScreenController.py"
 New-Item -ItemType Directory -Force -Path $BuildRoot, $DistRoot | Out-Null
-& $Python -c "from PIL import Image; im=Image.open(r'macos/AP01Logo.png').convert('RGBA'); im.save(r'$Icon', format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+& $Python -c "import sys; from PIL import Image; im=Image.open(sys.argv[1]).convert('RGBA'); im.save(sys.argv[2], format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])" $LogoSource $Icon
+if ($LASTEXITCODE -ne 0) { throw "Icon generation failed." }
 
 $VersionParts = $Version.Split('.')
 while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
@@ -70,8 +77,8 @@ VSVersionInfo(
     --distpath $DistRoot `
     --workpath $BuildRoot `
     --specpath $BuildRoot `
-    --add-data "macos/AP01Logo.png;macos" `
-    --add-data "reference/provider-icons;reference/provider-icons" `
+    --add-data "$LogoSource;macos" `
+    --add-data "$ProviderIcons;reference/provider-icons" `
     --hidden-import ap01_prepare_screen `
     --hidden-import ap01_screen_bridge `
     --hidden-import ap01_wifi_bridge `
@@ -81,7 +88,8 @@ VSVersionInfo(
     --hidden-import ap01_custom_ota `
     --hidden-import mi_cloud `
     --hidden-import patch_asset `
-    windows/AP01ScreenController.py
+    $EntryPoint
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed; no package will be produced." }
 
 $Exe = Join-Path $DistRoot "CUKTECH Screen Controller\CUKTECH Screen Controller.exe"
 if (-not (Test-Path $Exe)) { throw "Build completed without the expected executable: $Exe" }

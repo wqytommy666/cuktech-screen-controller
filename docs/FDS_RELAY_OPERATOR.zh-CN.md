@@ -90,9 +90,13 @@ curl --noproxy '*' http://127.0.0.1:8790/health
 随附的隧道脚本会清除桌面代理环境变量，并默认让 `cloudflared` 自动选择 QUIC 或
 HTTP/2。网络只允许其中一种传输时可设置 `CUKTECH_RELAY_PROTOCOL=quic` 或
 `CUKTECH_RELAY_PROTOCOL=http2`，不要在未检测端口 `7844` 前固定协议。
-每次启动和退出时 discovery 会先标记为离线；只有新的公开 URL 通过外网
-`/health` 检查后才会重新标记在线。健康检查使用 DoH，避免刚创建域名的短暂
-`NXDOMAIN` 被本机 DNS 负缓存。
+`ap01_relay_supervisor.py` 会持续检查公开 `/health`，并校验服务标识和版本。
+启动、退出或检查失败时撤下在线地址；运行中连续失败 3 次会重建隧道，首次
+启动超过 180 秒仍未就绪也会重试。健康检查支持系统 HTTPS 代理与 DoH，
+可用 `CUKTECH_RELAY_HEALTH_PROXY` 指定仅用于健康检查的代理。
+在线 discovery 每约 90 秒续期，`expires_at` 有效期为 240 秒；新版客户端会
+拒绝过期记录，避免主机睡眠或彻底断网后仍误报在线。旧版客户端仍兼容地址
+字段，但不检查有效期。
 
 Quick Tunnel 是临时调试入口，没有稳定性保证。长期公开服务应改用自有域名的
 Cloudflare Named Tunnel（或等价的稳定 HTTPS 入口），避免随机域名失效导致所有

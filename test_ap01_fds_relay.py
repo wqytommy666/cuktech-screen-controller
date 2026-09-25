@@ -125,6 +125,16 @@ class RelayDownloadTests(unittest.TestCase):
         self.assertIn("不能绕过固件签名校验", message)
         self.assertIn("不能降级", message)
 
+    def test_discovery_rejects_expired_online_lease(self) -> None:
+        response = Mock(status_code=200)
+        with patch.object(client.requests, "get", return_value=response), patch.object(client.time, "time", return_value=1000):
+            for expires in (999, 1000, "nan", "inf"):
+                response.json.return_value = {"enabled": True, "url": "https://relay.example.com", "expires_at": expires}
+                with self.subTest(expires=expires), self.assertRaisesRegex(RuntimeError, "过期"):
+                    client.resolve_relay_url()
+            response.json.return_value["expires_at"] = 1100
+            self.assertEqual(client.resolve_relay_url(), "https://relay.example.com")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -76,3 +76,9 @@ everywhere.
 The relay only builds and uploads the verified image. The owner's local Mi
 Home session still sends the final OTA command to their own AP01, after the
 app's explicit confirmation.
+
+### Runtime health and discovery lease
+
+`ap01_relay_supervisor.py` checks public health continuously, including the JSON service identity and firmware version. It withdraws discovery on a failed check, replaces the tunnel after three consecutive failures, and retries startup after 180 seconds without public readiness. Health probes support the macOS system HTTPS proxy, an explicit `CUKTECH_RELAY_HEALTH_PROXY`, and direct/DoH fallbacks.
+
+Online discovery is renewed roughly every 90 seconds with a 240-second `expires_at` lease. Updated clients reject expired records after host sleep or total network loss; older clients remain compatible but do not enforce the lease.

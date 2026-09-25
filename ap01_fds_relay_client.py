@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import ipaddress
 import json
+import math
 import os
 import stat
 import time
@@ -127,6 +128,13 @@ def resolve_relay_url(
         raise RuntimeError("共享部署服务发现配置结构无效")
     if not payload.get("enabled") or not payload.get("url"):
         raise RuntimeError("共享部署服务正在维护，请稍后重试")
+    if "expires_at" in payload:
+        try:
+            expires = float(payload["expires_at"])
+        except (TypeError, ValueError) as error:
+            raise RuntimeError("共享部署服务有效期无效") from error
+        if not math.isfinite(expires) or expires <= time.time():
+            raise RuntimeError("共享部署服务心跳已过期，服务可能离线，请稍后重试")
     return validate_relay_url(str(payload["url"]))
 
 

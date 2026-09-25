@@ -41,6 +41,12 @@ CUKTECH Screen Controller provides two ways to control the AP01 display.
 > gateway does not bypass this signature gate. See the
 > [AP01 firmware compatibility status](docs/AP01_FIRMWARE_STATUS.md).
 
+> **Connectivity repair, September 25, 2026:** The shared onboarding endpoint
+> passed ticket issuance, CDN download and verification again, with continuous
+> health checks added. For an already-installed Loader, check the computer's IP
+> and account sessions before considering firmware work. See the
+> [repair report and remaining limitations](docs/CONNECTIVITY_REPAIR_2026-09-25.md).
+
 | | Method 1: macOS / Windows app | Method 2: coding agent on macOS / Windows |
 | --- | --- | --- |
 | Best for | Everyday use with a native UI | First-time setup, diagnostics and deep customization |

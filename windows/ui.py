@@ -967,13 +967,16 @@ class MainWindow(QMainWindow):
             stamp = document.get("last_refresh")
             if isinstance(stamp, (int, float)):
                 refreshed = time.strftime("%H:%M:%S", time.localtime(stamp))
-                status = f"额度未连接 · 屏幕已切换提示页 · 最后成功 {refreshed}"
+                status = f"额度未连接 · 已生成连接提示页 · 最后成功 {refreshed}"
             else:
-                status = "额度未连接 · 屏幕已显示“未连接，请连接”"
+                status = "额度未连接 · 已生成“未连接，请连接”提示页"
         elif document.get("error"):
             status = f"服务运行中 · 数据刷新失败：{document['error']}"
         elif "requests" in document:
             status = f"自定义画面服务正常 · 已请求 {document.get('requests', 0)} 次"
+        elif document.get("status") == "partial":
+            missing = "、".join(sorted(document.get("provider_errors") or {}))
+            status = f"部分额度在线 · {missing} 未连接 · 其他账号继续刷新"
         elif isinstance(document.get("last_refresh"), (int, float)):
             refreshed = time.strftime("%H:%M:%S", time.localtime(document["last_refresh"]))
             status = f"额度数据在线 · 最后刷新 {refreshed} · 每 5 分钟更新"

@@ -25,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from quota_dashboard import (
+    Quota,
     fetch_claude_desktop,
     fetch_codex,
     render_connection_status_outputs,
@@ -50,6 +51,7 @@ class State:
         self.refreshing = False
         self.screen_status = "starting"
         self.stale_after = 420
+        self.provider_errors: dict[str, str] = {}
 
 
 STATE = State()
@@ -78,8 +80,20 @@ def refresh() -> dict[str, object]:
         STATE.refreshing = True
         STATE.last_attempt = time.time()
     try:
-        claude = _fetch_with_retry("Claude", fetch_claude_desktop)
-        codex = _fetch_with_retry("Codex", fetch_codex)
+        quotas: dict[str, Quota] = {}
+        errors: dict[str, str] = {}
+        for name, callback in (("CLAUDE", fetch_claude_desktop), ("CODEX", fetch_codex)):
+            try:
+                quotas[name] = _fetch_with_retry(name, callback)
+            except Exception as exc:
+                errors[name] = str(exc)
+                quotas[name] = Quota(provider=name, used_percent=None, source="unavailable", error=str(exc))
+        with STATE.lock:
+            STATE.provider_errors = errors
+        if len(errors) == 2:
+            raise RuntimeError("；".join(f"{name}: {error}" for name, error in errors.items()))
+        claude, codex = quotas["CLAUDE"], quotas["CODEX"]
+        status = "partial" if errors else "live"
         temporary_png = PNG.with_name(PNG.name + ".tmp")
         temporary_gif = GIF.with_name(GIF.name + ".tmp")
         temporary_master = MASTER.with_name(MASTER.name + ".tmp")
@@ -87,9 +101,10 @@ def refresh() -> dict[str, object]:
         document: dict[str, object] = {
             "schema": 1,
             "generated_at": refreshed_at.isoformat(timespec="seconds"),
-            "status": "live",
-            "claude": asdict(claude) | {"remaining_percent": claude.remaining_percent},
-            "codex": asdict(codex) | {"remaining_percent": codex.remaining_percent},
+            "status": status,
+            "provider_errors": errors,
+            "claude": asdict(claude) | {"remaining_percent": None if claude.error else claude.remaining_percent},
+            "codex": asdict(codex) | {"remaining_percent": None if codex.error else codex.remaining_percent},
         }
         temporary = JSON_OUT.with_suffix(".json.tmp")
         with STATE.publish_lock:
@@ -112,7 +127,7 @@ def refresh() -> dict[str, object]:
         with STATE.lock:
             STATE.last_refresh = time.time()
             STATE.error = None
-            STATE.screen_status = "live"
+            STATE.screen_status = status
         return document
     finally:
         with STATE.lock:
@@ -193,7 +208,8 @@ def _ensure_snapshot(stale_after: int) -> None:
             if last_success is not None and time.time() - last_success <= stale_after:
                 with STATE.lock:
                     STATE.error = None
-                    STATE.screen_status = "live"
+                    STATE.screen_status = status
+                    STATE.provider_errors = document.get("provider_errors") or {}
                 return
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             pass
@@ -224,7 +240,7 @@ def _disconnect_if_stale() -> None:
         last_refresh = STATE.last_refresh
         stale_after = STATE.stale_after
         should_replace = (
-            STATE.screen_status == "live"
+            STATE.screen_status in {"live", "partial"}
             and not STATE.refreshing
             and last_refresh is not None
             and time.time() - last_refresh > stale_after
@@ -252,7 +268,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             with STATE.lock:
                 age = time.time() - STATE.last_refresh if STATE.last_refresh is not None else None
-                connected = STATE.screen_status == "live" and STATE.error is None
+                connected = STATE.screen_status in {"live", "partial"} and STATE.error is None
                 body = json.dumps(
                     {
                         "ok": connected,
@@ -263,6 +279,7 @@ class Handler(BaseHTTPRequestHandler):
                         "age_seconds": round(age, 1) if age is not None else None,
                         "stale_after": STATE.stale_after,
                         "error": STATE.error,
+                        "provider_errors": STATE.provider_errors,
                         "refreshing": STATE.refreshing,
                         "snapshot_ready": GIF.is_file(),
                     },

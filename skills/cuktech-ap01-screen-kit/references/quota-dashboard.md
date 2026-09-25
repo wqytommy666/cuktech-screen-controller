@@ -67,3 +67,7 @@ curl --noproxy '*' http://127.0.0.1:8765/health
 
 The bridge regenerates the dashboard every five minutes. A log entry from the
 AP01 LAN IP requesting `/screen.gif` confirms end-to-end delivery.
+
+## Partial collection failures
+
+Each official account is collected independently. If one fails, its panel shows unavailable values while the other continues to refresh. `/health` reports `status: "partial"` and `provider_errors`; `connected` describes quota collection, not physical AP01 delivery. Only a recent request from the AP01 proves display delivery. If both accounts fail or the snapshot ages out, the full disconnected fallback remains active.

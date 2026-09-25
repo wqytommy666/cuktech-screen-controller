@@ -64,7 +64,14 @@ fi
 
 HEALTH="$(/usr/bin/curl --noproxy '*' -sS --max-time 3 http://127.0.0.1:8765/health 2>/dev/null || true)"
 if [[ "$HEALTH" == \{* ]]; then
-    ok "后台服务" "$HEALTH"
+    HEALTH_STATE="$(print -r -- "$HEALTH" | "$ROOT/.venv/bin/python" -c 'import json,sys; d=json.load(sys.stdin); print(d.get("status", "live" if d.get("ok") else "disconnected"))' 2>/dev/null || true)"
+    if [[ "$HEALTH_STATE" == "live" ]]; then
+        ok "额度采集" "$HEALTH"
+    elif [[ "$HEALTH_STATE" == "partial" ]]; then
+        warn "部分额度未连接" "$HEALTH"
+    else
+        bad "额度采集" "$HEALTH"
+    fi
 else
     bad "后台服务" "无法访问 http://127.0.0.1:8765/health"
 fi
@@ -88,9 +95,13 @@ fi
 
 LOG="$ARTIFACTS/ap01_launchd.log"
 if [[ -f "$LOG" ]]; then
-    REQUEST="$(grep 'GET /screen.gif' "$LOG" 2>/dev/null | tail -1 || true)"
+    REQUEST="$(grep 'GET /screen.gif HTTP/1.0\" 200' "$LOG" 2>/dev/null | tail -1 || true)"
     if [[ -n "$REQUEST" ]]; then
-        ok "AP01 请求" "$REQUEST"
+        if print -r -- "$REQUEST" | "$ROOT/.venv/bin/python" -c 'import datetime,sys; text=sys.stdin.read(); stamp=datetime.datetime.strptime(text.split("]")[0].lstrip("["), "%d/%b/%Y %H:%M:%S").timestamp(); sys.exit(0 if 0 <= datetime.datetime.now().timestamp()-stamp < 900 else 1)' 2>/dev/null; then
+            ok "近期设备取图" "$REQUEST"
+        else
+            warn "设备取图已过期" "$REQUEST；不能据此判断现在已连接"
+        fi
     else
         warn "AP01 请求" "日志中还没有 GET /screen.gif；检查 Wi-Fi 或实时加载器"
     fi

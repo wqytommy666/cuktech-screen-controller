@@ -7,12 +7,44 @@ import subprocess
 import sys
 import time
 import unittest
+from unittest.mock import patch
+from contextlib import ExitStack
 import urllib.request
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 
 class WiFiBridgeTests(unittest.TestCase):
+    def test_one_failed_provider_does_not_hide_live_provider(self) -> None:
+        import ap01_wifi_bridge as bridge
+        from quota_dashboard import Quota
+        from PIL import Image
+
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            root = Path(directory)
+            for key, name in (("PNG", "screen.png"), ("GIF", "screen.gif"),
+                              ("MASTER", "master.png"), ("JSON_OUT", "quota.json")):
+                stack.enter_context(patch.object(bridge, key, root / name))
+            stack.enter_context(patch.object(bridge, "STATE", bridge.State()))
+            stack.enter_context(patch.object(bridge, "_fetch_with_retry", side_effect=[
+                RuntimeError("Claude Desktop sessionKey was not found"),
+                Quota(provider="CODEX", used_percent=None, weekly_used_percent=53, plan="pro"),
+            ]))
+            result = bridge.refresh()
+            self.assertEqual(result["status"], "partial")
+            self.assertEqual(result["codex"]["weekly_used_percent"], 53)
+            self.assertIsNone(result["claude"]["used_percent"])
+            self.assertIsNone(result["claude"]["remaining_percent"])
+            self.assertIn("CLAUDE", result["provider_errors"])
+            self.assertEqual(bridge.STATE.screen_status, "partial")
+            with Image.open(bridge.GIF) as image:
+                self.assertEqual(image.size, (320, 240))
+                self.assertGreaterEqual(image.n_frames, 2)
+            self.assertLessEqual(bridge.GIF.stat().st_size, 90000)
+            bridge.STATE.last_refresh = time.time() - 500
+            bridge._disconnect_if_stale()
+            self.assertEqual(bridge.STATE.screen_status, "disconnected")
+
     def test_bridge_serves_health_and_placeholder_before_live_refresh(self) -> None:
         root = Path(__file__).resolve().parent
         with TemporaryDirectory() as directory:

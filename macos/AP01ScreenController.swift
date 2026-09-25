@@ -507,10 +507,13 @@ final class AP01Model: ObservableObject {
                         if let stamp = object["last_refresh"] as? TimeInterval {
                             let formatter = DateFormatter()
                             formatter.dateFormat = "HH:mm:ss"
-                            self.statusText = "额度未连接 · 屏幕已切换提示页 · 最后成功 \(formatter.string(from: Date(timeIntervalSince1970: stamp)))"
+                            self.statusText = "额度未连接 · 已生成连接提示页 · 最后成功 \(formatter.string(from: Date(timeIntervalSince1970: stamp)))"
                         } else {
-                            self.statusText = "额度未连接 · 屏幕已显示“未连接，请连接”"
+                            self.statusText = "额度未连接 · 已生成“未连接，请连接”提示页"
                         }
+                    } else if object["status"] as? String == "partial" {
+                        let missing = (object["provider_errors"] as? [String: String] ?? [:]).keys.sorted().joined(separator: "、")
+                        self.statusText = "部分额度在线 · \(missing) 未连接 · 其他账号继续刷新"
                     } else if let problem = object["error"] as? String, !problem.isEmpty {
                         self.statusText = "服务运行中 · 数据刷新失败：\(problem)"
                     } else if let requests = object["requests"] as? Int {

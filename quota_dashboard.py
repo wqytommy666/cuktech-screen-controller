@@ -108,6 +108,7 @@ class Quota:
     fable_label: str | None = None
     plan: str | None = None
     source: str = "live"
+    error: str | None = None
 
     @property
     def remaining_percent(self) -> float:
@@ -1038,6 +1039,7 @@ def render_master(
         reset_summary: str,
         icon_name: str,
         accent: str,
+        error: str | None = None,
     ) -> None:
         x1, y1, x2, _ = bounds
         provider_icon(icon_name, x1 + 10, y1 + 5, 15, accent)
@@ -1045,8 +1047,9 @@ def render_master(
         center_y = y1 + 12
         text((provider_x, center_y), title, provider_font, text_color, "lm")
         provider_width = draw.textlength(title, font=provider_font) / scale
-        freshness = f"{plan} · {refreshed_at:%H:%M}"
-        plan_width = draw.textlength(freshness, font=plan_font) / scale + 18
+        freshness = "未连接" if error else f"{plan} · {refreshed_at:%H:%M}"
+        freshness_font = reset_summary_font if error else plan_font
+        plan_width = draw.textlength(freshness, font=freshness_font) / scale + 18
         badge = (
             provider_x + provider_width + 6,
             y1 + 5.5,
@@ -1062,10 +1065,10 @@ def render_master(
         )
         draw.ellipse(
             sr((badge[0] + 5, center_y - 1.8, badge[0] + 8.6, center_y + 1.8)),
-            fill=live_color,
+            fill=danger_color if error else live_color,
         )
-        text((badge[0] + 12, center_y), freshness, plan_font, accent, "lm")
-        text((x2 - 7, center_y), reset_summary, reset_summary_font, text_color, "rm")
+        text((badge[0] + 12, center_y), freshness, freshness_font, muted_color if error else accent, "lm")
+        text((x2 - 7, center_y), "检查账号或网络" if error else reset_summary, reset_summary_font, text_color, "rm")
 
     # Compact inset cards leave more breathing room around the tiny AP01 panel
     # and reduce the number of high-entropy pixels the GIF decoder processes.
@@ -1080,6 +1083,7 @@ def render_master(
         _compact_reset_summary(claude),
         "claude",
         claude_color,
+        claude.error,
     )
     panel_header(
         codex_bounds,
@@ -1092,6 +1096,7 @@ def render_master(
         _compact_reset_summary(codex),
         "codex",
         codex_color,
+        codex.error,
     )
 
     claude_centers = (62, 160, 258)

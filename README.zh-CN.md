@@ -39,6 +39,10 @@ CUKTECH Screen Controller 提供两种使用方式。
 > FDS 中转或外置网关不能绕过这项签名校验。详见
 > [AP01 固件兼容状态](docs/AP01_FIRMWARE_STATUS.zh-CN.md)。
 
+> **2026-09-25 连接修复：** 共享部署入口已重新完成申请、下载与校验测试，
+> 并加入持续健康检查。已有 Loader 的屏幕不更新时，请核对电脑 IP 和账号登录态；
+> 不要为日常刷新重复安装固件。详见[修复记录与剩余限制](docs/CONNECTIVITY_REPAIR_2026-09-25.zh-CN.md)。
+
 | | 方法一：安装 macOS / Windows 软件 | 方法二：在 macOS / Windows 交给 Coding Agent |
 | --- | --- | --- |
 | 适合人群 | 使用原生界面的日常用户 | 首次配置、故障诊断和深度自定义 |

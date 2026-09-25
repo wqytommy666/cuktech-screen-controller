@@ -8,7 +8,7 @@ from ap01_console import configure_stdio
 class ConsoleTests(unittest.TestCase):
     def test_chinese_ota_messages_survive_legacy_windows_pipe_encoding(self):
         output = io.BytesIO()
-        stream = io.TextIOWrapper(output, encoding="cp1252")
+        stream = io.TextIOWrapper(output, encoding="cp1252", newline="\n")
         with patch("sys.stdout", stream), patch("sys.stderr", stream):
             configure_stdio()
             print("仅下载验证通过；尚未安装")

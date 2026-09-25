@@ -20,6 +20,12 @@ from windows.runtime import (
 
 
 class WindowsRuntimeTests(unittest.TestCase):
+    def test_powershell5_can_decode_non_ascii_script_paths(self) -> None:
+        root = Path(__file__).resolve().parent
+        for script in list((root / "windows").glob("*.ps1")) + list((root / "scripts").glob("*.ps1")):
+            if not script.read_text(encoding="utf-8-sig").isascii():
+                self.assertTrue(script.read_bytes().startswith(b"\xef\xbb\xbf"), str(script))
+
     def test_source_launcher_imports_from_unrelated_cwd_without_pythonpath(self) -> None:
         root = Path(__file__).resolve().parent
         with TemporaryDirectory() as directory:

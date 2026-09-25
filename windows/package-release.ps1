@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Version = "0.4.1",
     [switch]$SkipBuild
@@ -32,9 +32,9 @@ Copy-Item -Force "$PSScriptRoot\mi-credentials.example.json" $Stage
 Copy-Item -Force "$PSScriptRoot\THIRD-PARTY-NOTICES.txt" $Stage
 Copy-Item -Force (Join-Path $Root "LICENSE") (Join-Path $Stage "PROJECT-LICENSE.txt")
 
-(Get-Content (Join-Path $Stage "先读我-Windows.txt") -Raw).Replace("{{VERSION}}", $Version) |
+(Get-Content (Join-Path $Stage "先读我-Windows.txt") -Raw -Encoding UTF8).Replace("{{VERSION}}", $Version) |
     Set-Content -Encoding UTF8 (Join-Path $Stage "先读我-Windows.txt")
-(Get-Content (Join-Path $Stage "Install-CUKTECHScreenController.ps1") -Raw).Replace("{{VERSION}}", $Version) |
+(Get-Content (Join-Path $Stage "Install-CUKTECHScreenController.ps1") -Raw -Encoding UTF8).Replace("{{VERSION}}", $Version) |
     Set-Content -Encoding UTF8 (Join-Path $Stage "Install-CUKTECHScreenController.ps1")
 
 @{

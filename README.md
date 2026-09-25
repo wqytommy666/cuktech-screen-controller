@@ -24,6 +24,22 @@
 
 ## Choose how you want to use it
 
+### New computer + stock AP01: use Codex or WorkBuddy
+
+Give a terminal-capable agent this repository URL and ask it to clone the project,
+read `AGENTS.md` and the [first-install runbook](docs/agent-first-install.md), then
+configure dependencies, content, login startup, device checks, download-only
+verification and AP01 image delivery. Installation requires a separate confirmation.
+No preinstalled Skill or maintainer account is needed. Only AP01 **0031** is
+supported; not every newly purchased unit is compatible. Windows first OTA still
+requires a local Mi Home credential JSON (no bundled QR-login helper), and shared
+relay availability is a separate prerequisite. The runbook distinguishes these
+blockers from a successful install.
+
+**Optional Antigravity + Codex dashboard (source runtime):** show the official
+Antigravity Gemini and Claude/GPT pools, each with five-hour and weekly remaining
+quota. This is not Gemini CLI usage. See the [bilingual setup guide](docs/ANTIGRAVITY_QUOTA.md).
+
 CUKTECH Screen Controller provides two ways to control the AP01 display.
 
 > New to developer tools? Start with the
@@ -164,7 +180,7 @@ Suggested prompt:
 
 ```text
 Use https://github.com/wqytommy666/cuktech-screen-controller as the source of
-truth. Read AGENTS.md, README.md and
+truth. Read AGENTS.md, docs/agent-first-install.md, README.md and
 skills/cuktech-ap01-screen-kit/SKILL.md first.
 
 I am not a programmer, so ask for one manual action at a time. I have a
@@ -180,7 +196,7 @@ address remains unchanged. If the router cannot reserve it, explain that AP01
 stores a literal IP: later address changes require restoring the old IP, or
 stabilizing a new IP and rebuilding/reinstalling the loader with confirmation.
 
-Then install the Bridge and configure either the automatic Claude/Codex quota
+Then install the Bridge and configure a Claude/Codex or Antigravity/Codex quota
 dashboard or my custom image. Verify /health and an AP01 GET /screen.gif 200 request, and
 enable automatic startup for the current operating system. If the loader is missing, build
 and validate the exact compatible image first and ask before installing it.
@@ -315,6 +331,12 @@ Safe Storage key through Keychain, while Windows decrypts the current user's
 Claude Electron profile with DPAPI. Codex uses its local `app-server` on both.
 
 ## First-time real-time firmware setup
+
+New users should use the [agent first-install runbook](docs/agent-first-install.md)
+and its shared-relay package flow; a local compiler or personally owned gateway
+is not required for that path. The commands below are the advanced local-build
+route. Never patch a cloud "latest" image unless it is the verified 0031 stock
+image with the reviewed hash.
 
 The built-in binary patch targets **only** AP01 model `njcuk.enstor.ap01` on
 firmware **`1.0.2_0031`**. Keep the Bridge computer and AP01 on the same

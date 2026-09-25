@@ -22,8 +22,12 @@ Daily display refresh does not use this shared relay. The Loader requests the
 computer address embedded at installation. When DHCP changes that address,
 inspect the router's client/lease tables before restoring it. A failed ping alone
 does not prove an address is free. The tested AP01 could send a diagnostic packet
-to the computer, but no recent image request was observed; restoring its old
-address remains pending router access.
+to the computer. Follow-up router inspection found an outdated reservation for
+the Mac's previous Wi-Fi MAC address. After checking that the Loader's embedded
+address was unused, the reservation was updated to the Mac's current fixed
+private address and its DHCP lease was renewed. The AP01 resumed HTTP 200 image
+requests at 15:22, then downloaded the Antigravity/Codex dashboard at 15:27
+(host local time). This repair did not use OTA or modify the display firmware.
 
 Quota collection now handles Claude and Codex independently. A missing Claude
 Desktop session no longer hides working Codex data. Unavailable provider values

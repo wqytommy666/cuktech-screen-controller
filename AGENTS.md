@@ -1,91 +1,22 @@
-# CUKTECH Screen Controller — Agent operating guide
-
-This repository controls a CUKTECH AP01 detachable display.  Treat the two
-operations below as different workflows:
-
-- **Daily screen refresh:** serve a 320×240 GIF over the LAN.  The AP01 writes
-  it to rotating `/tmp/.ap01q*.gif` RAM slots.  This is the normal path.
-- **One-time real-time loader installation:** modify and install firmware for
-  the exact supported model/build.  This writes Flash and requires explicit
-  user confirmation.
-
-## Start here on every new computer
-
-1. Read `README.zh-CN.md` (or `README.md`) and
-   `skills/cuktech-ap01-screen-kit/SKILL.md`.
-2. Detect the host operating system and run only read-only checks first:
-
-   ```bash
-   # macOS
-   ./macos/diagnose.sh
-
-   # Windows PowerShell
-   powershell -ExecutionPolicy Bypass -File scripts/diagnose-windows.ps1
-   ```
-
-   A non-zero result before installation simply means prerequisites are still
-   missing; read the printed checklist and continue with the applicable setup.
-
-3. Confirm all of the following with the user:
-   - Apple Silicon macOS 14+ for the macOS package, or Windows 10/11 x64 for
-     the Windows package; the Python/coding-agent toolkit supports both;
-   - the AP01 is powered, paired in Mi Home, and shown online before any
-     first-loader workflow;
-   - the Bridge computer and AP01 are on the same LAN without client/AP isolation;
-   - VPN/firewall rules permit LAN access to TCP 8765 and the Bridge computer's
-     routed LAN address is reserved with DHCP before a loader build;
-   - Claude Desktop and the official Codex/ChatGPT app are installed and
-     signed in when automatic quota display is requested on either platform;
-   - whether this AP01 already requests `GET /screen.gif` from the Bridge computer;
-   - exact AP01 model and firmware before any loader work.
-
-   Explain the network requirement precisely: already-patched local artwork
-   needs only a working LAN; automatic quota refreshes need internet on the
-   host computer; a first-loader installation needs the AP01 and installation
-   environment online. USB and the
-   charging-base contacts are not the screen-content transport used here.
-   Explain that the loader embeds a literal IPv4 URL. Record the routed
-   interface, router-visible MAC, current IP, and reservation status before a
-   first install. On macOS keep Private Wi-Fi Address fixed, not rotating. If
-   reservation is unavailable, explicitly explain that a later address change
-   requires restoring the old IP or one rebuilt/reinstalled loader for a
-   stabilized new IP.
-4. For a source/agent installation, run the platform-appropriate setup:
-
-   ```bash
-   ./scripts/setup-macos.sh
-
-   # Windows PowerShell
-   powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1 -App
-   ```
-
-5. Verify both endpoints and the device request:
-
-   ```bash
-   # macOS
-   curl --noproxy '*' http://127.0.0.1:8765/health
-   curl --noproxy '*' -I http://127.0.0.1:8765/screen.gif
-   ./macos/diagnose.sh
-
-   # Windows PowerShell
-   Invoke-RestMethod http://127.0.0.1:8765/health
-   Invoke-WebRequest -Method Head http://127.0.0.1:8765/screen.gif
-   .\scripts\diagnose-windows.ps1
-   ```
+# CUKTECH AP01 agent guide
 
 ## Choose the smallest workflow
 
-- Already sees AP01 `GET /screen.gif`: do **not** perform OTA.  Configure quota
-  mode or convert custom artwork and restart the Bridge.
-- No real-time loader: verify exact model `njcuk.enstor.ap01` and firmware
-  `1.0.2_0031`, then follow
-  `skills/cuktech-ap01-screen-kit/references/realtime-firmware.md`.
-- Custom image: follow
-  `skills/cuktech-ap01-screen-kit/references/custom-content.md`.
-- Claude/Codex quota panel: follow
-  `skills/cuktech-ap01-screen-kit/references/quota-dashboard.md`.
-- Network/startup issue: follow
-  `skills/cuktech-ap01-screen-kit/references/network-operations.md`.
+- **Daily refresh:** serve a 320×240 GIF over LAN; the patched AP01 uses rotating `/tmp/.ap01q*.gif` RAM slots. Do not use firmware installation to refresh artwork or quota values.
+- **First real-time loader:** a model/build-specific firmware installation writes Flash and requires explicit confirmation immediately before installation.
+- Detect the host OS and relevant local bridge state with read-only checks. Use known facts and diagnostics rather than repeating questions the computer can answer.
+- For a new host, missing prerequisites or a first loader, follow [first-install setup](docs/agent-first-install.md). Do not run setup or require all setup documents for an ordinary content edit.
+- The first-install runbook is the shared entry for Codex and WorkBuddy. Use a clean clone and the owner's local accounts/network; a preinstalled Skill or maintainer-specific files must not be prerequisites. Report Windows Mi Home login and relay availability blockers explicitly.
+
+## Route by the requested change
+
+- Existing AP01 `GET /screen.gif`: use the content/quota workflow; no OTA.
+- Custom image: `skills/cuktech-ap01-screen-kit/references/custom-content.md`.
+- Quota panel: `skills/cuktech-ap01-screen-kit/references/quota-dashboard.md`.
+- LAN, IP or startup failure: `skills/cuktech-ap01-screen-kit/references/network-operations.md`.
+- First loader: verify the exact model/build, then use `skills/cuktech-ap01-screen-kit/references/realtime-firmware.md`.
+
+Already-patched local artwork needs a working LAN, not internet or USB data transport. Automatic quota refresh needs internet on the host; a first loader needs the device and installation environment online. Keep the detailed address-reservation and network preconditions in the first-install/network guides.
 
 ## Non-negotiable checks
 
@@ -106,3 +37,13 @@ operations below as different workflows:
   firmware installation.
 - A successful handoff includes `/health`, a valid GIF89a, and a logged AP01
   `GET /screen.gif 200` request.
+
+## Verify the requested deliverable
+
+- Artwork: inspect the preview and validate 320×240 dimensions, GIF89a, frame count and size.
+- Bridge/rendering code: run affected existing tests and check relevant service behavior.
+- Deployment: verify `/health`, a valid GIF and a logged AP01 `GET /screen.gif 200`; do not claim device delivery from a local preview alone.
+- Firmware build: retain all existing manifest, checksum, hook-target and payload-readback checks. A successful build does not authorize installation.
+- Offline design-only requests can be delivered with local validation; state that device delivery was not tested rather than initiating a device operation.
+
+Preserve unrelated working-tree files. Reuse still-valid evidence and repeat checks only when related changes or failures require it.

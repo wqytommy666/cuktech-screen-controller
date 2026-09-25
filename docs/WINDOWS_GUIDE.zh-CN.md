@@ -140,6 +140,11 @@ Windows 版可完成：
 Windows 没有 macOS 米家 App 的 plist。需要云端操作时，软件只在本次进程中读取
 你选择的本机 JSON，格式见压缩包里的 `mi-credentials.example.json`：
 
+**当前尚无内置米家扫码登录/凭据导出功能。** 下面只是格式示例，不是获取令牌的方法。
+如果全新电脑没有用户合法取得的本机会话文件，Agent 应明确报告首次 OTA 登录被阻塞，
+而不是要求普通用户猜测 Token。已有 Loader 的换图与额度更新不需要此文件。
+Codex / WorkBuddy 的完整首次配置步骤见[执行手册](agent-first-install.md)。
+
 ```json
 {
   "userId": "YOUR_XIAOMI_USER_ID",

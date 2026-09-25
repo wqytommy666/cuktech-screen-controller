@@ -11,8 +11,13 @@ gateway solves transport only and cannot bypass this signature gate.
 
 ## Prerequisites
 
+New users should start from the full repository's `docs/agent-first-install.md`
+and use its shared-relay flow. Local firmware compilation below is an advanced
+operator path, not a prerequisite for every new Windows/Mac owner.
+
 - Log into the required services on the computer that will run the Bridge.
-  Automatic Claude/Codex account collection is currently macOS-specific.
+  Claude/Codex collection supports macOS and Windows. Antigravity uses the signed-in
+  official `agy` CLI. Content-only mode needs none of these quota accounts.
 - Put the Bridge computer and AP01 on the same non-isolated LAN.
 - Reserve the computer's IPv4 address in DHCP before building the firmware URL.
   Confirm the router-visible MAC, keep macOS Private Wi-Fi Address fixed, then
@@ -20,12 +25,14 @@ gateway solves transport only and cannot bypass this signature gate.
   the user before installation that a later IP change requires restoring the
   embedded address or rebuilding/reinstalling the loader once for a stabilized
   new address.
-- Install Python dependencies plus `riscv64-elf-gcc` and
-  `riscv64-elf-binutils`.
+- Install Python dependencies. Only the advanced local-build/operator path needs
+  `riscv64-elf-gcc` and `riscv64-elf-binutils`; shared-relay clients do not.
 
 ## Build
 
-Download the matching stock firmware:
+Use an independently verified, hash-matching 0031 stock image. The following
+cloud commands may return a newer firmware: inspect the version first, and do
+not use a 0041/latest image with 0031 offsets.
 
 ```bash
 .venv/bin/python mi_cloud.py firmware

@@ -1,5 +1,18 @@
 # Claude and Codex quota dashboard
 
+## Optional Antigravity source
+
+When the user explicitly means **Antigravity** (not Gemini CLI), replace the
+Claude card with `--quota-provider antigravity`. The signed-in official `agy`
+CLI supplies `-p /usage --output-format json`; no model prompt or copied OAuth
+credentials are needed. Show its Gemini and Claude/GPT quota groups separately,
+each with five-hour and weekly **remaining** values. Never label these as the
+user's standalone Claude Max quota or invent a paid plan. Persist the choice
+in `artifacts/ap01-quota-provider` and restart the Bridge. The default is still
+Claude for existing users. See `docs/ANTIGRAVITY_QUOTA.md` in the full repository;
+the environment override is `CUKTECH_QUOTA_PROVIDER`, and a nonstandard CLI path
+is `CUKTECH_AGY_BIN`. A fresh AP01 image request is still required for delivery.
+
 ## Data sources
 
 The bundled automatic account collector supports macOS and Windows. macOS

@@ -25,6 +25,7 @@ import sqlite3
 import subprocess
 import tempfile
 import threading
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -109,13 +110,128 @@ class Quota:
     plan: str | None = None
     source: str = "live"
     error: str | None = None
+    groups: list[Quota] | None = None
 
     @property
     def remaining_percent(self) -> float:
         used = [value for value in (self.used_percent, self.weekly_used_percent) if value is not None]
+        if self.groups:
+            used = [value for group in self.groups for value in
+                    (group.used_percent, group.weekly_used_percent) if value is not None]
         if not used:
             return 0.0
         return max(0.0, min(100.0, 100.0 - max(used)))
+
+
+def _antigravity_executable() -> str:
+    candidates = [os.environ.get("CUKTECH_AGY_BIN", ""), shutil.which("agy") or "",
+                  str(Path.home() / ".local/bin/agy"),
+                  str(Path.home() / ".local/bin/agy.exe")]
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    raise RuntimeError("未找到 Antigravity CLI (agy)，请安装并登录；非标准路径可设置 CUKTECH_AGY_BIN")
+
+
+def parse_antigravity_usage(report: dict[str, Any]) -> Quota:
+    """Parse the official /usage command, never a generated model response.
+
+    Only known quota IDs are accepted. Missing/disabled windows stay unknown,
+    not 100%, and Antigravity's third-party pool is not a Claude Max account.
+    """
+    if not isinstance(report, dict):
+        raise ValueError("Antigravity 额度响应格式不正确")
+    command = report.get("command") or {}
+    if report.get("status") != "SUCCESS" or not isinstance(command, dict) or command.get("name") != "usage":
+        raise ValueError("Antigravity 未返回成功的 usage 命令结果")
+    data = command.get("data") or {}
+    groups = data.get("groups") if isinstance(data, dict) else None
+    if not isinstance(groups, list):
+        raise ValueError("Antigravity 响应缺少额度分组")
+    windows: dict[str, tuple[float, int | None]] = {}
+    known = {"gemini-5h": "5h", "gemini-weekly": "weekly",
+             "3p-5h": "5h", "3p-weekly": "weekly"}
+    for group in groups:
+        if not isinstance(group, dict) or group.get("enabled") is False or group.get("is_enabled") is False:
+            continue
+        for bucket in group.get("buckets") or []:
+            if not isinstance(bucket, dict) or bucket.get("enabled") is False or bucket.get("is_enabled") is False:
+                continue
+            key = bucket.get("id")
+            if key not in known or bucket.get("window") != known[key]:
+                continue
+            fraction = bucket.get("remaining_fraction")
+            if isinstance(fraction, bool) or not isinstance(fraction, (float, int)):
+                continue
+            if not math.isfinite(fraction) or not 0 <= fraction <= 1:
+                continue
+            if key in windows:
+                raise ValueError("Antigravity 返回重复的额度窗口")
+            windows[key] = (100 * (1 - fraction), _iso_timestamp(bucket.get("reset_time")))
+    if not windows:
+        raise ValueError("Antigravity 没有可用额度，请检查 agy 登录及订阅状态")
+    parsed = []
+    for prefix, name in (("gemini", "Gemini"), ("3p", "Claude/GPT")):
+        five, week = windows.get(prefix + "-5h", (None, None)), windows.get(prefix + "-weekly", (None, None))
+        parsed.append(Quota(provider=name, used_percent=five[0], resets_at=five[1],
+                            window_minutes=300 if five[0] is not None else None,
+                            weekly_used_percent=week[0], weekly_resets_at=week[1],
+                            weekly_window_minutes=10080 if week[0] is not None else None,
+                            source="Antigravity agy /usage"))
+    return Quota(provider="ANTIGRAVITY", used_percent=None, groups=parsed,
+                 source="Antigravity agy /usage")
+
+
+def fetch_antigravity(timeout: float = 90.0) -> Quota:
+    """Run a read-only metacommand in an empty directory, without a model turn.
+
+    The CLI owns authentication. Raw stdout/stderr and credentials are never
+    persisted or included in errors. Bound both elapsed time and output size.
+    """
+    command = _codex_command(_antigravity_executable()) + ["-p", "/usage", "--output-format", "json"]
+    with tempfile.TemporaryDirectory(prefix="ap01-agy-") as directory:
+        proc = subprocess.Popen(command, cwd=directory, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        output: queue.Queue[bytes | Exception] = queue.Queue(maxsize=1)
+        limit = 1024 * 1024
+        def reader() -> None:
+            try:
+                assert proc.stdout is not None
+                output.put(proc.stdout.read(limit + 1))
+            except Exception as exc:
+                output.put(exc)
+        threading.Thread(target=reader, daemon=True, name="antigravity-usage").start()
+        deadline = time.monotonic() + timeout
+        try:
+            try:
+                payload = output.get(timeout=timeout)
+            except queue.Empty as exc:
+                raise TimeoutError("Antigravity 额度查询超时") from exc
+            if isinstance(payload, Exception):
+                raise RuntimeError("Antigravity 额度读取失败")
+            if len(payload) > limit:
+                raise RuntimeError("Antigravity 额度响应超过大小限制")
+            try:
+                code = proc.wait(timeout=max(0.01, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired as exc:
+                raise TimeoutError("Antigravity 额度查询超时") from exc
+            if code:
+                raise RuntimeError("Antigravity usage 命令失败，请在终端检查 agy 的登录状态")
+            try:
+                report = json.loads(payload)
+            except (ValueError, UnicodeError) as exc:
+                raise ValueError("Antigravity 未返回有效 JSON，请升级 agy 至支持 /usage 的版本") from exc
+            return parse_antigravity_usage(report)
+        finally:
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=2)
+            if proc.stdout is not None:
+                proc.stdout.close()
 
 
 def _read_json_rpc(proc: subprocess.Popen[str], request_id: int, timeout: float) -> dict[str, Any]:
@@ -897,6 +1013,7 @@ def render_master(
         accent: str,
         value_face: Any,
         percent_face: Any,
+        label_offset: float = 18,
     ) -> None:
         cx, cy = center
         bounds = (cx - radius, cy - radius, cx + radius, cy + radius)
@@ -996,7 +1113,7 @@ def render_master(
 
         if left is None:
             draw_centered("—", value_face, disabled_color)
-            text((cx, cy + 18), label, label_face, disabled_color, "mm")
+            text((cx, cy + label_offset), label, label_face, disabled_color, "mm")
             return
         numeric = f"{left:.0f}"
         value_color = danger_color if left <= 10 else text_color
@@ -1030,7 +1147,7 @@ def render_master(
         )
         # Muted text provides a second, non-colour cue while keeping a clear
         # inner gap from the 5 px ring stroke at the bottom.
-        text((cx, cy + 18), label, label_face, muted_color, "mm")
+        text((cx, cy + label_offset), label, label_face, muted_color, "mm")
 
     def panel_header(
         bounds: tuple[int, int, int, int],
@@ -1072,19 +1189,40 @@ def render_master(
 
     # Compact inset cards leave more breathing room around the tiny AP01 panel
     # and reduce the number of high-entropy pixels the GIF decoder processes.
-    claude_bounds = (11, 43, 309, 135)
-    codex_bounds = (11, 143, 309, 236)
+    antigravity = claude.provider.upper() == "ANTIGRAVITY"
+    claude_bounds = (11, 43, 309, 149 if antigravity else 135)
+    codex_bounds = (11, 157 if antigravity else 143, 309, 236)
+    if antigravity:
+        claude_color = "#8975EF"
     glow_panel(claude_bounds, claude_color)
     glow_panel(codex_bounds, codex_color)
-    panel_header(
-        claude_bounds,
-        "CLAUDE",
-        (claude.plan or "MAX").upper(),
-        _compact_reset_summary(claude),
-        "claude",
-        claude_color,
-        claude.error,
-    )
+    if antigravity:
+        text((24, 55), "ANTIGRAVITY", _font(s(13), bold=True), text_color, "lm")
+        text((300, 55), "未连接" if claude.error else f"剩余 · 更新 {refreshed_at:%H:%M}",
+             _cjk_font(s(9), bold=True), danger_color if claude.error else claude_color, "rm")
+        groups = claude.groups or [Quota(provider=name, used_percent=None)
+                                  for name in ("Gemini", "Claude/GPT")]
+        for index, group in enumerate(groups[:2]):
+            center = 91 if index == 0 else 236
+            accent = claude_color if index == 0 else "#DA91BC"
+            text((center, 72), group.provider, _font(s(11), bold=True), accent, "mm")
+            summary = "检查 agy 登录" if claude.error else _compact_reset_summary(group)
+            text((center, 83), summary, _cjk_font(s(8), bold=True), muted_color, "mm")
+            for cx, label, used in ((center - 33, "5小时", group.used_percent),
+                                    (center + 33, "本周", group.weekly_used_percent)):
+                quota_ring((cx, 117), 28, used, label, ring_label_font, accent,
+                           _condensed_font(s(28)), _condensed_font(s(11)), label_offset=16)
+        draw.line(sr((163, 68, 163, 143)), fill="#172338", width=s(1))
+    else:
+        panel_header(
+            claude_bounds,
+            "CLAUDE",
+            (claude.plan or "MAX").upper(),
+            _compact_reset_summary(claude),
+            "claude",
+            claude_color,
+            claude.error,
+        )
     panel_header(
         codex_bounds,
         "CODEX",
@@ -1105,7 +1243,7 @@ def render_master(
         ("本周", claude.weekly_used_percent),
         (claude.fable_label or "FABLE 5", claude.fable_used_percent),
     )
-    for index, (label, used) in enumerate(claude_windows):
+    for index, (label, used) in enumerate(() if antigravity else claude_windows):
         cx = claude_centers[index]
         if index:
             separator_x = (claude_centers[index - 1] + cx) / 2
@@ -1132,16 +1270,17 @@ def render_master(
     for index, (label, used) in enumerate(codex_windows):
         cx = codex_centers[index]
         if index:
-            draw.line(sr((160, 165, 160, 231)), fill="#172338", width=s(1))
+            draw.line(sr((160, 181 if antigravity else 165, 160, 231)), fill="#172338", width=s(1))
         quota_ring(
-            (cx, 201),
-            30,
+            (cx, 207 if antigravity else 201),
+            25 if antigravity else 30,
             used,
             label,
             ring_label_font,
             codex_color,
-            value_font_codex,
-            percent_font_codex,
+            _condensed_font(s(28)) if antigravity else value_font_codex,
+            _condensed_font(s(11)) if antigravity else percent_font_codex,
+            label_offset=14 if antigravity else 18,
         )
 
     # The AP01 firmware paints its own clock over rows 0..39.  Clear the
@@ -1217,7 +1356,9 @@ def render_outputs(
     # advances to “未连接，请连接” after seven minutes instead of preserving an
     # ambiguous old dashboard forever. Omitting the loop extension makes the
     # decoder stop on that final status frame.
-    pulse_phases = (0.12, 0.38, 0.66, 0.38)
+    # Four quota rings carry more detail. Use two startup glints instead of
+    # four, keeping Antigravity small without degrading its readable palette.
+    pulse_phases = (0.12, 0.66) if claude.provider.upper() == "ANTIGRAVITY" else (0.12, 0.38, 0.66, 0.38)
     for color_count in (96, 80, 72, 64):
         disconnected = _device_frame_from_master(
             render_connection_status_master(last_success_at=refreshed_at)
@@ -1235,11 +1376,12 @@ def render_outputs(
             animated = frame.copy()
             animated_draw = ImageDraw.Draw(animated)
             claude_y = 56 + round(phase * 63)
-            codex_y = 150 + round(phase * 62)
+            codex_y = (165 + round(phase * 47) if claude.provider.upper() == "ANTIGRAVITY"
+                       else 150 + round(phase * 62))
             animated_draw.rounded_rectangle(
                 (12, claude_y - 4, 14, claude_y + 4),
                 radius=1,
-                fill="#FFD09A",
+                fill="#BAAEFF" if claude.provider.upper() == "ANTIGRAVITY" else "#FFD09A",
             )
             animated_draw.rounded_rectangle(
                 (12, codex_y - 4, 14, codex_y + 4),
@@ -1258,7 +1400,7 @@ def render_outputs(
             format="GIF",
             save_all=True,
             append_images=gif_frames[1:],
-            duration=[600, 600, 600, 600, 417_600, 60_000],
+            duration=[600] * len(pulse_phases) + [420_000 - 600 * len(pulse_phases), 60_000],
             disposal=2,
             optimize=False,
         )

@@ -2,6 +2,11 @@
 
 这份教程写给完全没有编程基础的用户。正常使用时不需要写代码，也不需要每次刷固件。
 
+**新电脑 + 原厂屏，交给 Codex / WorkBuddy：**请从
+[首次配置执行手册](agent-first-install.md)开始，那里有完整命令、登录限制与逐阶段验收。
+Windows 当前还没有米家扫码登录器；需要本机凭据 JSON 才能完成首次 OTA，
+不能只靠手机登录就假定电脑已经授权。
+
 > 图形软件同时提供 macOS 与 Windows 版本。Windows 的完整安装截图与故障排查见
 > [Windows 使用指南](WINDOWS_GUIDE.zh-CN.md)。
 

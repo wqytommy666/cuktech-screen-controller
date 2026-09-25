@@ -3,7 +3,10 @@ param()
 
 $Root = Split-Path -Parent $PSScriptRoot
 $VenvPython = Join-Path $Root ".venv\Scripts\python.exe"
-$Artifacts = Join-Path $Root "artifacts"
+$DataRoot = if ($env:CUKTECH_DATA_ROOT) { $env:CUKTECH_DATA_ROOT } elseif ($env:LOCALAPPDATA) {
+    Join-Path $env:LOCALAPPDATA "CUKTECH Screen Controller"
+} else { $Root }
+$Artifacts = if ($env:CUKTECH_ARTIFACTS_DIR) { $env:CUKTECH_ARTIFACTS_DIR } else { Join-Path $DataRoot "artifacts" }
 $Pass = 0
 $Warn = 0
 $Fail = 0
@@ -54,7 +57,13 @@ if ($LanAddress) {
 
 try {
     $Health = Invoke-RestMethod -Uri "http://127.0.0.1:8765/health" -TimeoutSec 3
-    Good "Bridge" ($Health | ConvertTo-Json -Compress)
+    if ($Health.status -eq "partial") {
+        Caution "Bridge" "HTTP is available, but at least one quota account is unavailable."
+    } elseif ($Health.ok -eq $true) {
+        Good "Bridge" "HTTP/data are ready; verify an AP01-originated image request separately."
+    } else {
+        Caution "Bridge" "HTTP is available, but live content is not ready."
+    }
 } catch {
     Caution "Bridge" "http://127.0.0.1:8765/health is not responding."
 }

@@ -29,7 +29,9 @@ echo "[2/5] 安装运行依赖…"
 .venv/bin/python -m pip install --disable-pip-version-check -r requirements.txt
 .venv/bin/python -c 'import PIL, requests, cryptography'
 
-if .venv/bin/python macos/store_mi_home_keychain.py \
+if [[ "${CUKTECH_SETUP_DRY_RUN:-0}" == "1" ]]; then
+    echo "      测试模式：跳过米家登录态与钥匙串读取/写入"
+elif .venv/bin/python macos/store_mi_home_keychain.py \
   --service com.wqytommy.CUKTECHScreenController.mi-home-owner \
   --account owner; then
     echo "      米家首次部署登录态已保存到当前用户钥匙串"
@@ -44,7 +46,7 @@ if [[ ! -f artifacts/ap01-mode ]]; then
 fi
 
 echo "[4/5] 安装登录自动启动 Bridge…"
-./macos/install-launch-agent.sh
+CUKTECH_LAUNCH_DRY_RUN="${CUKTECH_SETUP_DRY_RUN:-0}" ./macos/install-launch-agent.sh
 
 if [[ "${CUKTECH_SETUP_DRY_RUN:-0}" == "1" ]]; then
     echo "[5/5] 测试模式：环境与 LaunchAgent 配置已验证，未启动服务。"

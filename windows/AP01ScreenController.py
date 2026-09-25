@@ -5,6 +5,12 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
+
+# Direct execution sets sys.path[0] to windows/, not the repository root.
+# Fresh source installs and the generated Startup shortcut use this form.
+if not getattr(sys, "frozen", False) and not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from windows.runtime import AppPaths, readiness, run_bridge
 
@@ -41,7 +47,9 @@ def main() -> int:
     if arguments and arguments[0] == "--diagnose-json":
         import json
 
-        print(json.dumps(readiness(AppPaths.discover()), ensure_ascii=False, indent=2))
+        # Pipes on a fresh Windows install may use a non-UTF-8 code page.
+        # JSON escapes retain the text without breaking redirected diagnostics.
+        print(json.dumps(readiness(AppPaths.discover()), ensure_ascii=True, indent=2))
         return 0
 
     from windows.ui import run_gui

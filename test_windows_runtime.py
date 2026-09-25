@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import json
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -17,6 +20,20 @@ from windows.runtime import (
 
 
 class WindowsRuntimeTests(unittest.TestCase):
+    def test_source_launcher_imports_from_unrelated_cwd_without_pythonpath(self) -> None:
+        root = Path(__file__).resolve().parent
+        with TemporaryDirectory() as directory:
+            environment = os.environ.copy()
+            environment.pop("PYTHONPATH", None)
+            environment["CUKTECH_DATA_ROOT"] = directory
+            result = subprocess.run(
+                [sys.executable, str(root / "windows/AP01ScreenController.py"), "--diagnose-json"],
+                cwd=directory, env=environment, capture_output=True, text=True,
+                encoding="utf-8", timeout=20,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIsInstance(json.loads(result.stdout), list)
+
     def test_new_runtime_defaults_to_quota_mode(self) -> None:
         with TemporaryDirectory() as directory:
             paths = AppPaths.discover(Path(directory))

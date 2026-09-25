@@ -24,6 +24,22 @@
 
 ## 选择一种使用方式
 
+### 新电脑 + 全新设备：交给 Codex / WorkBuddy
+
+把仓库链接和这句话交给能操作本机终端的 Agent：
+
+> 请克隆本仓库，阅读 `AGENTS.md` 和
+> [`docs/agent-first-install.md`](docs/agent-first-install.md)，按新电脑首次配置流程
+> 帮我完成环境、内容、登录自启、兼容性检查、仅下载验证和屏幕取图验收；安装固件前单独向我确认。
+
+无需预装 Skill，也不需要作者的电脑或账号。**首次 Loader 仅支持 AP01 `0031`，
+不是所有新购固件都支持。** Windows 首次 OTA 目前仍需本机米家凭据 JSON，
+没有内置扫码登录；共享服务离线时首次部署也会受阻。上述指南会明确区分这些状态。
+
+**源码运行时新增可选 Antigravity + Codex 面板：**读取官方 Antigravity 的
+Gemini 与 Claude/GPT 两组额度，每组显示 5 小时及本周剩余量。不是 Gemini CLI
+额度。详见[中英文接入说明](docs/ANTIGRAVITY_QUOTA.md)。
+
 CUKTECH Screen Controller 提供两种使用方式。
 
 > **完全没有编程基础？** 直接打开[零基础使用教程](docs/BEGINNER_GUIDE.zh-CN.md)。
@@ -150,7 +166,7 @@ https://github.com/wqytommy666/cuktech-screen-controller
 
 ```text
 请以 https://github.com/wqytommy666/cuktech-screen-controller 为唯一项目依据。
-开始执行前先阅读 AGENTS.md、README.zh-CN.md 和
+开始执行前先阅读 AGENTS.md、docs/agent-first-install.md、README.zh-CN.md 和
 skills/cuktech-ap01-screen-kit/SKILL.md。
 
 我没有编程基础，请一次只告诉我一个需要人工完成的动作。我使用的是酷态科 AP01
@@ -164,7 +180,7 @@ powershell -ExecutionPolicy Bypass -File scripts/diagnose-windows.ps1。进行�
 向我解释：AP01 固件保存固定 IP，今后 IP 变化时需要恢复旧地址；旧地址无法恢复时
 需要固定新地址并重新构建、确认安装一次固件。
 
-然后安装并启动 Bridge，配置 Claude/Codex 自动额度面板或我的自定义图片。验证 /health 和
+然后安装并启动 Bridge，配置 Claude/Codex、Antigravity/Codex 额度或我的自定义图片。验证 /health 和
 AP01 GET /screen.gif 200，并按当前操作系统
 设置登录后自动启动。如果加载器不存在，先构建和校验完全匹配的镜像，真正安装前
 向我确认。日常刷新必须使用 /tmp 的 RAM 槽位，不要重复刷固件。
@@ -292,6 +308,10 @@ Windows 使用 DPAPI 在内存中解密当前用户的 Claude Electron 登录态
 两个平台都通过本地 `app-server` 获取额度。
 
 ## 首次配置实时固件
+
+普通用户优先按[首次配置指南第 6、7 节](docs/agent-first-install.md#6-获取首次部署包普通用户优先共享-relay)
+获取受限共享部署包，不需要本地编译器或自己的网关。**下面是高级本地构建路径**；
+不要直接下载云端“最新”固件并套用 0031 的补丁，先验证确切版本和固定的原厂 hash。
 
 内置二进制 Patch 仅适配 AP01 型号 `njcuk.enstor.ap01`、固件
 **`1.0.2_0031`**。构建前让运行 Bridge 的电脑与 AP01 连接到同一个未隔离

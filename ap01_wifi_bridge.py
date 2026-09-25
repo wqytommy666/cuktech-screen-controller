@@ -28,6 +28,7 @@ from quota_dashboard import (
     Quota,
     fetch_claude_desktop,
     fetch_codex,
+    fetch_antigravity,
     render_connection_status_outputs,
     render_outputs,
 )
@@ -52,6 +53,7 @@ class State:
         self.screen_status = "starting"
         self.stale_after = 420
         self.provider_errors: dict[str, str] = {}
+        self.quota_provider = "claude"
 
 
 STATE = State()
@@ -82,9 +84,11 @@ def refresh() -> dict[str, object]:
     try:
         quotas: dict[str, Quota] = {}
         errors: dict[str, str] = {}
-        for name, callback in (("CLAUDE", fetch_claude_desktop), ("CODEX", fetch_codex)):
+        first_name = STATE.quota_provider.upper()
+        first_callback = fetch_antigravity if first_name == "ANTIGRAVITY" else fetch_claude_desktop
+        for name, callback in ((first_name, first_callback), ("CODEX", fetch_codex)):
             try:
-                quotas[name] = _fetch_with_retry(name, callback)
+                quotas[name] = _fetch_with_retry(name, callback, attempts=1 if name == "ANTIGRAVITY" else 3)
             except Exception as exc:
                 errors[name] = str(exc)
                 quotas[name] = Quota(provider=name, used_percent=None, source="unavailable", error=str(exc))
@@ -92,7 +96,7 @@ def refresh() -> dict[str, object]:
             STATE.provider_errors = errors
         if len(errors) == 2:
             raise RuntimeError("；".join(f"{name}: {error}" for name, error in errors.items()))
-        claude, codex = quotas["CLAUDE"], quotas["CODEX"]
+        claude, codex = quotas[first_name], quotas["CODEX"]
         status = "partial" if errors else "live"
         temporary_png = PNG.with_name(PNG.name + ".tmp")
         temporary_gif = GIF.with_name(GIF.name + ".tmp")
@@ -103,7 +107,8 @@ def refresh() -> dict[str, object]:
             "generated_at": refreshed_at.isoformat(timespec="seconds"),
             "status": status,
             "provider_errors": errors,
-            "claude": asdict(claude) | {"remaining_percent": None if claude.error else claude.remaining_percent},
+            "quota_provider": STATE.quota_provider,
+            STATE.quota_provider: asdict(claude) | {"remaining_percent": None if claude.error else claude.remaining_percent},
             "codex": asdict(codex) | {"remaining_percent": None if codex.error else codex.remaining_percent},
         }
         temporary = JSON_OUT.with_suffix(".json.tmp")
@@ -194,6 +199,8 @@ def _ensure_snapshot(stale_after: int) -> None:
     if all(path.is_file() for path in (PNG, GIF, MASTER, JSON_OUT)):
         try:
             document = json.loads(JSON_OUT.read_text(encoding="utf-8"))
+            if document.get("quota_provider", "claude") != STATE.quota_provider:
+                raise ValueError("额度来源已切换，等待首次刷新")
             status = str(document.get("status") or "live")
             last_success = _parse_timestamp(
                 document.get("last_success_at") or document.get("generated_at")
@@ -202,7 +209,7 @@ def _ensure_snapshot(stale_after: int) -> None:
                 STATE.last_refresh = last_success
             if status == "disconnected":
                 with STATE.lock:
-                    STATE.error = "等待 Claude / Codex 恢复连接"
+                    STATE.error = "等待额度账号恢复连接"
                     STATE.screen_status = "disconnected"
                 return
             if last_success is not None and time.time() - last_success <= stale_after:
@@ -216,7 +223,7 @@ def _ensure_snapshot(stale_after: int) -> None:
         _publish_disconnected("本地额度数据已超过有效期", last_success=STATE.last_refresh)
         return
 
-    _publish_disconnected("等待 Claude / Codex 首次成功刷新")
+    _publish_disconnected("等待额度账号首次成功刷新")
 
 
 def _refresh_once() -> None:
@@ -280,6 +287,7 @@ class Handler(BaseHTTPRequestHandler):
                         "stale_after": STATE.stale_after,
                         "error": STATE.error,
                         "provider_errors": STATE.provider_errors,
+                        "quota_provider": STATE.quota_provider,
                         "refreshing": STATE.refreshing,
                         "snapshot_ready": GIF.is_file(),
                     },
@@ -386,7 +394,16 @@ def main() -> int:
     )
     parser.add_argument("--once", action="store_true", help="refresh once and exit")
     parser.add_argument("--no-initial-refresh", action="store_true")
+    provider_file = ARTIFACTS / "ap01-quota-provider"
+    saved_provider = provider_file.read_text(encoding="utf-8-sig").strip() if provider_file.is_file() else "claude"
+    parser.add_argument("--quota-provider", choices=("claude", "antigravity"),
+                        default=os.environ.get("CUKTECH_QUOTA_PROVIDER", saved_provider),
+                        help="first card source; Antigravity uses the official agy /usage command")
     args = parser.parse_args()
+    if args.quota_provider not in {"claude", "antigravity"}:
+        parser.error("invalid quota provider; choose claude or antigravity")
+    STATE.quota_provider = args.quota_provider
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
 
     if args.once:
         try:

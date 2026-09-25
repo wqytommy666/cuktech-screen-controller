@@ -1,6 +1,6 @@
 ---
 name: cuktech-ap01-screen-kit
-description: Create, customize, validate, deploy, and operate Wi-Fi-updated screens for the CUKTECH AP01 detachable display. Use when Codex needs to convert images or GIFs to AP01-safe content, design a custom 320x240 dashboard, show official Claude Desktop and Codex quota windows, build the verified 1.0.2_0031 real-time firmware, install it through Xiaomi OTA, diagnose LAN refreshes, or explain and control Flash wear.
+description: Create, customize, validate, deploy, and operate Wi-Fi-updated screens for the CUKTECH AP01 detachable display. Use for first-device setup, custom images, Claude/Codex or Antigravity/Codex quota dashboards, verified 1.0.2_0031 Loader installation, and LAN refresh troubleshooting.
 ---
 
 # CUKTECH Screen Controller
@@ -9,6 +9,13 @@ Build a reusable AP01 project, choose the smallest applicable workflow, and
 validate both the rendered asset and the device request path.
 
 ## Bootstrap a project
+
+For a **new computer + stock AP01**, clone the full public repository and follow
+[`docs/agent-first-install.md`](https://github.com/wqytommy666/cuktech-screen-controller/blob/main/docs/agent-first-install.md).
+It includes OS setup, Mi Home login constraints, shared-relay commands, explicit
+installation confirmation and device delivery checks. The small content template
+below is not a substitute for full first-install tooling. Codex and WorkBuddy can
+read these Markdown instructions directly; native Skill installation is optional.
 
 Use an existing AP01 project when present. Otherwise copy the bundled template:
 
@@ -31,7 +38,7 @@ artifacts into a shareable project.
 1. **Replace artwork on an already-patched display**: read
    [references/custom-content.md](references/custom-content.md). Convert the
    asset, atomically replace the served GIF, and avoid OTA.
-2. **Create or restyle a Claude/Codex quota panel**: read
+2. **Create or restyle a Claude/Codex or Antigravity/Codex quota panel**: read
    [references/quota-dashboard.md](references/quota-dashboard.md). Fetch the
    signed-in official accounts on macOS or Windows, edit `render_master()`, run
    tests, and serve the lightweight GIF. macOS uses Keychain for Claude Safe
@@ -83,12 +90,14 @@ artifacts into a shareable project.
 
 ## Validate before delivery
 
-Run the available unit tests and inspect the 2x preview. For arbitrary content,
-validate dimensions, GIF version, frame count, trailer, and byte size. For a
+Choose checks for the changed workflow. For artwork, inspect the 2x preview
+and validate dimensions, GIF version, frame count, trailer, and byte size.
+For rendering or bridge-code changes, run the affected available tests. For a
 firmware build, retain the patcher's manifest, CRC, MD5, payload readback,
-hook-target checks, and zero-relocation result.
+hook-target checks, and zero-relocation result. Reuse evidence when the relevant
+code, inputs, and environment have not changed.
 
-Confirm the bridge health and device request:
+When deployment is requested, confirm the bridge health and device request:
 
 ```bash
 curl --noproxy '*' http://127.0.0.1:8765/health

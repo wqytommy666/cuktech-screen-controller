@@ -13,6 +13,7 @@ if not getattr(sys, "frozen", False) and not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from windows.runtime import AppPaths, readiness, run_bridge
+from ap01_console import configure_stdio
 
 
 def _ota_helper(arguments: list[str]) -> int:
@@ -37,6 +38,7 @@ def _relay_helper(arguments: list[str]) -> int:
 
 
 def main() -> int:
+    configure_stdio()
     arguments = sys.argv[1:]
     if arguments and arguments[0] == "--bridge":
         return run_bridge()

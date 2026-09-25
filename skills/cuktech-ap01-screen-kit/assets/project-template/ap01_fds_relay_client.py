@@ -25,6 +25,7 @@ import requests
 
 from ap01_custom_ota import OTA_CDN_HOST
 from mi_cloud import MODEL, MiCloud
+from ap01_console import configure_stdio
 
 
 API_VERSION = 1
@@ -311,6 +312,7 @@ def write_ticket(payload: dict[str, Any], output: Path) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--relay-url")
     parser.add_argument("--discovery-url", default=DEFAULT_DISCOVERY_URL)

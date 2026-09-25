@@ -12,6 +12,7 @@ rm -rf "$STAGE" "$ZIP"
 mkdir -p "$RUNTIME/reference" "$RUNTIME/macos" "$RUNTIME/artifacts"
 
 for file in \
+  ap01_console.py \
   ap01_prepare_screen.py \
   ap01_screen_bridge.py \
   ap01_wifi_bridge.py \

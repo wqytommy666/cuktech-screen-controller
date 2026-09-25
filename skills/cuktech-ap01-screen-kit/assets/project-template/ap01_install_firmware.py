@@ -8,9 +8,11 @@ from pathlib import Path
 
 from ap01_custom_ota import deliver, probe_ota_url, upload_to_xiaomi
 from mi_cloud import MiCloud
+from ap01_console import configure_stdio
 
 
 def main() -> int:
+    configure_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("firmware", type=Path)
     action = parser.add_mutually_exclusive_group(required=True)

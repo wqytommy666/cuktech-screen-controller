@@ -474,7 +474,8 @@ final class AP01Model: ObservableObject {
         loadPreview()
         refreshStatus()
         timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refreshStatus() }
+            guard let model = self else { return }
+            Task { @MainActor in model.refreshStatus() }
         }
     }
 
